@@ -1,28 +1,41 @@
 # streamgeo
-A speed-optimized collection of useful geometry algorithms operating over geographic streams (polylines, trajectories, etc) and collections of geographic streams.
+A space- and time-optimized collection of useful geometry algorithms
+operating over geographic streams (polylines, trajectories, etc) and
+collections of geographic streams.
 
-This library is primarily implemented as a native C library, but provides extensions for python3+ as well as the JVM (TODO) (Scala, Java, etc).
+This library is primarily implemented as a native C library for
+performance reasons, but provides extensions for python3+ as well
+as the JVM (Scala, Java, etc).
+
+The project exists as a hobby/side project of mine, and is heavily
+inspired by Daniel Lemire's work. It is not production-ready.
 
 ### Features
 
-* Trajectory Simplification
+* Trajectory pre/post processing:
+  For a given stream, it might be necessary to down- or up-sample the
+  number of points. This library provides methods for simplifying
+  (down-sampling) and interpolating (up-sampling) a stream.
   - Ramer-Douglas-Peucker decimation ( O(n log n), high quality )
+  - Radial Distance decimation ( O(n), lower quality )
   - Adjacent-pairs averaging ( O(n), fixed downsampling )
   - Remove spiky data with Median filters of various widths
-  - Radial Distance decimation ( O(n), lower quality ) (TODO)
-  - Savitzky Golay quadratic filters for smoothing (TODO)
+  - Savitzky Golay quadratic filters for smoothing
 
 * Consensus Algorithms
-  - For a group of trajectories, which trajectory is "most representative" of that collection?
-    - "Median" consensus mode chooses a pre-existing element of the collection: the trajectory that minimizes sum of distance to all other trajectories. (TODO)
-    - "DBA" consensus mode implements the Dynamic Barycenter Averaging algorithm of [F. Petitjean](http://dpt-info.u-strasbg.fr/~fpetitjean/Research/Petitjean2011-PR.pdf) (TODO)
+  - For a collection of trajectories, which trajectory is "most representative?"
+    - "Median" consensus mode chooses a pre-existing element of the collection:
+       the trajectory that minimizes sum of distance to all other trajectories.
+    - "DBA" consensus mode implements the Dynamic Barycenter Averaging algorithm of
+      [F. Petitjean](http://dpt-info.u-strasbg.fr/~fpetitjean/Research/Petitjean2011-PR.pdf)
 
 * Polyline Similarity Metrics
   - Dynamic Time Warp similarity ( O(n^2) )
-  - Fast Dynamic Time Warp similarity  ( O(n) )
-  - Custom "spatial correlation" with short-circuiting in common cases. ( O(n) )
+  - Fast Approximate Dynamic Time Warp similarity  ( O(n) )
+  - Hausdorff Distance ( O(n) )
+  - Frechet Distance
 
-* Geohash conversion
+* Working in geohash-space
   - Encode trajectories into sequences of length-K Geohash strings. (TODO)
   - Decode sequences of length-K geohash strings into trajectories. (TODO)
   - Identify a set of covering Geohashes for a stream at an arbitrary precision. (TODO)
@@ -38,18 +51,16 @@ This library is primarily implemented as a native C library, but provides extens
 
 * Performance benchmarks!
 
-* Example sequences from Strava's dataset!
-
 ## Background
 Streamgeo was initially developed for use in Data Science work at Strava.
 
-We work with lots of "streams" of geographic data - our primary stream types are
+I work with lots of "streams" of geographic data - the primary stream types are
   - "Segments" (short polylines on which athletes compete to cover in the shortest time)
     - Segments can include an altitude stream providing height above sea level in meters.
       Future versions of this library might provide mechanisms for interacting with these 3d streams.
       For now, Streamgeo works with the lat/lng data stream only.
     - Segments are "time-invariant" - they only include spatial coordinates.
-  and
+
   - "Activities" (long polylines which athletes record and upload with a GPS-enabled device).
     - Activities include a "time stamp" stream matching each index with a "seconds from activity start" value.
     - Activities can also include an altitude stream, like segments.
@@ -62,9 +73,9 @@ Fundamentally, these are both examples of GPS trajectories, and differ mainly in
 Future versions of this library will provide mechanisms for interacting with time series and altitude data.
 The initial focus, however, is on planar lat/lng stream data.
 
-Our primary storage for our streams is GZIPped JSON living on S3.
+Initially, the primary storage for our streams is GZIPped JSON living on S3.
 
-A sample stream for segment id 8109834 (Old La Honda Road):
+A sample stream for a segment might look like:
 
     8109834.json.gz
 
