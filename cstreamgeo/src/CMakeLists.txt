@@ -6,7 +6,7 @@ endif()
 
 set(STREAMGEO_SRC
     filters.c
-    roaring_mask.c
+    roaringmask.c
     similarity.c
     stream.c)
 

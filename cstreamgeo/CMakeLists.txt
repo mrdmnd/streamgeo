@@ -49,25 +49,3 @@ MESSAGE( STATUS "CMAKE_C_COMPILER: " ${CMAKE_C_COMPILER} )
 MESSAGE (STATUS "CMAKE_C_FLAGS: " ${CMAKE_C_FLAGS} )
 MESSAGE( STATUS "CMAKE_C_FLAGS_DEBUG: " ${CMAKE_C_FLAGS_DEBUG} )
 MESSAGE( STATUS "CMAKE_C_FLAGS_RELEASE: " ${CMAKE_C_FLAGS_RELEASE} )
-
-
-
-
-######### REMOVE BELOW HERE ############
-set(CSTREAMGEO_LIB_NAME cstreamgeo)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native -std=c11 -mfpmath=sse")
-
-add_library(cstreamgeo SHARED src/similarity.c src/roaringmask.c src/stream.c src/filters.c)
-target_link_libraries(cstreamgeo m roaring)
-
-add_executable(similarity_test tests/similarity_test.c)
-target_link_libraries(similarity_test cstreamgeo)
-
-add_executable(filter_test tests/filter_test.c)
-target_link_libraries(filter_test cstreamgeo)
-
-add_executable(stream_test tests/stream_test.c)
-target_link_libraries(stream_test cstreamgeo)
-
-install(DIRECTORY include/ DESTINATION include/cstreamgeo)
-install(TARGETS ${CSTREAMGEO_LIB_NAME} DESTINATION lib)
