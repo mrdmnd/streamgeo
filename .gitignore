@@ -42,4 +42,5 @@
 *.idb
 *.pdb
 
-*/.idea/*
+.idea/
+build/

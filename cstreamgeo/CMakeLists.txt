@@ -1,38 +1,73 @@
 cmake_minimum_required(VERSION 3.5)
-project(cstreamgeo)
+set(CMAKE_MACOSX_RPATH OFF)
 
-# Remove me later!!
 if (NOT CMAKE_BUILD_TYPE)
     message(STATUS "No build type specified, default to release")
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE)
 endif()
 
-# Use the package PkgConfig to detect GTK+ headers and library files:
-# The GTK dependency is used for the GUI testing app.
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(GTK3 REQUIRED gtk+-3.0)
+project(cstreamgeo)
+set(STREAMGEO_LIB_NAME cstreamgeo)
 
-include_directories(include /usr/local/include/roaring/ ${GTK3_INCLUDE_DIRS})
-link_directories(${GTK3_LIBRARY_DIRS})
-add_definitions(${GTK3_CFLAGS_OTHER})
+option(BUILD_STATIC "Build a static library" OFF) # turning this on disables production of dynamic library
+option(BUILD_LTO "Build library with link-time optimizations" OFF)
+option(SANITIZE "Sanitize addresses" OFF)
 
+# Include some of our custom CMake modules/scripts/whatever
+set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake")
+find_package(CTargets)
+find_package(Options)
+find_package(LTO)
+
+include_directories(include)
+install(DIRECTORY include/${STREAMGEO_LIB_NAME} DESTINATION include)
+
+enable_testing()
+include(CTest)
+
+# Note: it is Dan Lemire's understanding that these variables
+# are passed down to subdirectories, so this needs to be done here.
+set(TEST_DATA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tests/testdata/")
+set(BENCHMARK_DATA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/realdata/")
+message(STATUS "Using TEST_DATA_DIR: " ${TEST_DATA_DIR})
+message(STATUS "Using BENCHMARK_DATA_DIR: " ${BENCHMARK_DATA_DIR})
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/tests/config.h.in"
+               "${CMAKE_CURRENT_SOURCE_DIR}/tests/config.h")
+
+add_subdirectory(src)
+add_subdirectory(benchmarks)
+add_subdirectory(tests)
+
+# Being terse is good, but knowing how the build is configured 
+# is important and should not be hard to figure out.
+MESSAGE( STATUS "CMAKE_SYSTEM_PROCESSOR: " ${CMAKE_SYSTEM_PROCESSOR})
+MESSAGE( STATUS "CMAKE_BUILD_TYPE: " ${CMAKE_BUILD_TYPE} )
+MESSAGE( STATUS "BUILD_STATIC: " ${BUILD_STATIC} )
+MESSAGE( STATUS "BUILD_LTO: " ${BUILD_LTO} )
+MESSAGE( STATUS "SANITIZE: " ${SANITIZE} )
+MESSAGE( STATUS "CMAKE_C_COMPILER: " ${CMAKE_C_COMPILER} )
+MESSAGE (STATUS "CMAKE_C_FLAGS: " ${CMAKE_C_FLAGS} )
+MESSAGE( STATUS "CMAKE_C_FLAGS_DEBUG: " ${CMAKE_C_FLAGS_DEBUG} )
+MESSAGE( STATUS "CMAKE_C_FLAGS_RELEASE: " ${CMAKE_C_FLAGS_RELEASE} )
+
+
+
+
+######### REMOVE BELOW HERE ############
 set(CSTREAMGEO_LIB_NAME cstreamgeo)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native -std=c11 -mfpmath=sse")
 
 add_library(cstreamgeo SHARED src/similarity.c src/roaringmask.c src/stream.c src/filters.c)
 target_link_libraries(cstreamgeo m roaring)
 
-add_executable(similarity_test test/similarity_test.c)
+add_executable(similarity_test tests/similarity_test.c)
 target_link_libraries(similarity_test cstreamgeo)
 
-add_executable(filter_test test/filter_test.c)
+add_executable(filter_test tests/filter_test.c)
 target_link_libraries(filter_test cstreamgeo)
 
-add_executable(stream_test test/stream_test.c)
+add_executable(stream_test tests/stream_test.c)
 target_link_libraries(stream_test cstreamgeo)
-
-add_executable(gui test/gui.c)
-target_link_libraries(gui ${GTK3_LIBRARIES} cstreamgeo)
 
 install(DIRECTORY include/ DESTINATION include/cstreamgeo)
 install(TARGETS ${CSTREAMGEO_LIB_NAME} DESTINATION lib)

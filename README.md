@@ -106,6 +106,15 @@ CRoaring is organized as a CMake project.
 To get the linker to update its cache, on Ubuntu you might need to run
     `sudo ldconfig`
 
+### Install gtk3
+
+On fedora, I needed 
+
+    `sudo dnf install gtk3-devel`
+
+On ubuntu, I needed 
+
+    `sudo apt-get install libgtk-3-dev`
 ### Install streamgeo
 
 Streamgeo is also organized as a CMake project.

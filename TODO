@@ -1,0 +1,1 @@
+NOTE: the newest version of the croaring lib has changed how iterators work - see this commit: https://github.com/RoaringBitmap/CRoaring/commit/c54f0564fbd0360ad7691a12cb2e06a278167db9
