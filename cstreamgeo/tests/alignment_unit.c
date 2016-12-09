@@ -54,7 +54,7 @@ void align_test_small() {
         printf("(%zu, %zu), ", warp_path[2 * i], warp_path[2 * i + 1]);
     }
     printf("]\n");
-    assert_int_equal(*warp_path, 8);
+    assert_int_equal(*path_length, 8);
     assert_true(*cost == 13.0);
     size_t correct[16] = {0, 0, 1, 1, 2, 2, 3, 3, 4, 3, 5, 3, 6, 4, 7, 5};
     for (size_t i = 0; i < *path_length * 2; i++) {

@@ -4,3 +4,4 @@
 int main() {
     printf("This is a benchmarkarino.\n");
 }
+
