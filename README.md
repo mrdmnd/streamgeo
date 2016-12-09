@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/mrdmnd/streamgeo.svg?branch=master)](https://travis-ci.org/mrdmnd/streamgeo)
+
 # streamgeo
 Streamgeo is a space- and time- optimized collection of useful geometry algorithms
 operating over geographic streams (polylines, trajectories, etc) and
