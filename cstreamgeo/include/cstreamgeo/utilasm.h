@@ -1,5 +1,5 @@
-#ifndef UTILASM_H_
-#define UTILASM_H_
+#ifndef UTILASM_H
+#define UTILASM_H
 
 #include <cstreamgeo/portability.h>
 

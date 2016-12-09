@@ -1,5 +1,5 @@
-#ifndef MISC_CONFIGREPORT_H
-#define MISC_CONFIGREPORT_H
+#ifndef CONFIGREPORT_H
+#define CONFIGREPORT_H
 
 #include <stddef.h>
 #include <stdint.h>
