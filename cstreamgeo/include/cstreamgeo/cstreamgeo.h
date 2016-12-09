@@ -29,17 +29,22 @@ stream_t* stream_create(const size_t n);
  * Create a stream from a list of floats. Number of POINTs is equal to n, but list must have 2n elements. 
  * Allocates memory; caller is responsible for cleanup.
  */
-stream_t* stream_create_from_list(const size_t n, ...); // TODO
+stream_t* stream_create_from_list(const size_t n, ...);
 
 /**
  * Frees the memory allocated by `s`.
  */
-void stream_destroy(const stream_t* stream); // TODO
+void stream_destroy(const stream_t* stream);
 
 /**
  * Print the (entire) contents of the stream.
  */
-void stream_printf(const stream_t* stream); // TODO
+void stream_printf(const stream_t* stream);
+
+/**
+ * Prints the number of points, distance, and sparsity for the stream.
+ */
+void stream_printf_statistics(const stream_t* stream);
 
 /**
  * Copies a stream. 
@@ -102,28 +107,32 @@ float redmond_similarity(const stream_t* a, const stream_t* b, const size_t radi
 /* -------------- Up/downsampling routines ----------------- */
 
 /**
- * Downsamples a stream intelligently with O(n log n) Ramer-Douglas-Peucker simplification. 
+ * Downsamples a stream intelligently with O(n log n) Ramer-Douglas-Peucker simplification.
+ * Allocates memory.
  */
-void downsample_ramer_douglas_peucker(const stream_t* input, const float epsilon, stream_t* output);
+stream_t* downsample_ramer_douglas_peucker(const stream_t* input, const float epsilon);
 
 /**
  * Downsamples a stream quickly with O(n) radial-distance simplification.
+ * Allocates memory.
  */
-void downsample_radial_distance(const stream_t* input, const float epsilon, stream_t* output); // TODO
+stream_t* downsample_radial_distance(const stream_t* input, const float epsilon); // TODO
 
 /**
  * Downsamples a stream *very* quickly (O(n), but with very good constant) by selecting all points at index zero mod `factor`.
+ * Allocates memory.
  */
-void downsample_fixed_factor(const stream_t* input, const size_t factor, stream_t* output); // TODO
+stream_t* downsample_fixed_factor(const stream_t* input, const size_t factor); // TODO
 
 /**
  * Upsamples a stream by a fixed factor. Fills in points by linear interpolation.
+ * Allocates memory.
  */
-void upsample_fixed_factor(const stream_t* input, const size_t factor, stream_t* output); // TODO
+stream_t* upsample_fixed_factor(const stream_t* input, const size_t factor); // TODO
 
 /*
  * Resamples a stream by the rational fraction M / N by upsampling at factor M and downsamping at factor N.
  */
-void resample_fixed_factor(const stream_t* input, const size_t m, const size_t n, stream_t* output);  // TODO
+stream_t* resample_fixed_factor(const stream_t* input, const size_t m, const size_t n);  // TODO
 
 #endif

@@ -7,15 +7,38 @@
 
 
 stream_t* stream_create(const size_t n) {
-    stream_t *stream = malloc(sizeof(stream_t));
+    stream_t* stream = malloc(sizeof(stream_t));
     stream->n = n;
     stream->data = malloc(2 * n * sizeof(float));
+    return stream;
+}
+
+stream_t* stream_create_from_list(const size_t n, ...) {
+    va_list args;
+    va_start(args, n);
+    stream_t* stream = stream_create(n);
+    float arg;
+    for (size_t i = 0; i < 2*n; i++) {
+        arg = (float) va_arg(args, double);
+        stream->data[i] = arg;
+    }
+    va_end(args);
     return stream;
 }
 
 void stream_destroy(const stream_t* stream) {
     free(stream->data);
     free(stream);
+}
+
+void stream_printf(const stream_t* stream) {
+    const size_t n = stream->n;
+    const float* data = stream->data;
+    printf("Stream contains %d points: [", n);
+    for(size_t i = 0; i < n; i++) {
+        printf("(%f %f), ", data[2*i], data[2*i+1]);
+    }
+    printf("]\n");
 }
 
 
@@ -59,12 +82,12 @@ float* stream_sparsity(const stream_t* stream) {
 
     const float optimal_spacing = stream_distance(stream) / (s_n-1);
     const float two_over_pi = 0.63661977236f;
-    size_t i, j, k;
+    int i, j, k;
     float lat_diff, lng_diff, v;
-    for(size_t n = 0; n < s_n; n++) {
+    for(int n = 0; n < s_n; n++) {
         i = (n - 1) < 0 ? 1 : n - 1;
         j = n;
-        k = (n + 1) > s_n - 1 ? s_n - 2 : n + 1;
+        k = (n + 1) > (int)s_n - 1 ? (int)s_n - 2 : n + 1;
         lat_diff = data[2*j] - data[2*i];
         lng_diff = data[2*j + 1] - data[2*i + 1];
         float d1 = sqrtf((lng_diff * lng_diff) + (lat_diff * lat_diff));
@@ -75,6 +98,18 @@ float* stream_sparsity(const stream_t* stream) {
         sparsity[j] = (float) (1.0 - two_over_pi * atan(v));
     }
     return sparsity;
+}
+
+void stream_printf_statistics(const stream_t* stream) {
+    const size_t n = stream->n;
+    const float distance = stream_distance(stream);
+    const float* sparsity = stream_sparsity(stream);
+    printf("Stream contains %d points. Total distance is %f. Sparsity array is: [", n, distance);
+    for (size_t i = 0; i < n; i++) {
+        printf("%f, ", sparsity[i]);
+    }
+    printf("]\n");
+    free(sparsity);
 }
 
 /**
@@ -134,19 +169,21 @@ void _douglas_peucker(const stream_t* input, const size_t start, const size_t en
  * Wrapper around _douglas_peucker to be called externally
  * @param input Input stream
  * @param epsilon Threshold for keeping points (keep if they exceed epsilon distance)
- * @param output Output stream (pre-allocated)
+ * @return simplified stream
  */
-void downsample_ramer_douglas_peucker(const stream_t* input, const float epsilon, stream_t* output) {
+stream_t* downsample_ramer_douglas_peucker(const stream_t* input, const float epsilon) {
     const size_t input_n = input->n;
     const float* input_data = input->data;
-
-    float* output_data = output->data;
 
     roaring_bitmap_t* indices = roaring_bitmap_create();
     roaring_bitmap_add(indices, 0);
     roaring_bitmap_add(indices, (uint32_t)input_n-1);
     _douglas_peucker(input, 0, input_n-1, epsilon, indices);
+    size_t n_max = roaring_bitmap_get_cardinality(indices);
     size_t n = 0;
+    stream_t* output = stream_create(n_max);
+    float* output_data = output->data;
+
     for (size_t i = 0; i < input_n; i++) {
         if (roaring_bitmap_contains(indices, (uint32_t)i)) {
             output_data[2*n] = input_data[2*i];
@@ -154,6 +191,6 @@ void downsample_ramer_douglas_peucker(const stream_t* input, const float epsilon
             n++;
         }
     }
-    output->n = n;
     roaring_bitmap_free(indices);
+    return output;
 }
