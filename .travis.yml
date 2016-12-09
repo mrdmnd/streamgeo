@@ -10,4 +10,4 @@ branches:
 before_install:
   - git clone https://github.com/RoaringBitmap/CRoaring.git && cd CRoaring && mkdir -p build && cd build && cmake .. && make -j && sudo make install && sudo ldconfig && cd ../..
 script:
-  - mkdir -p build && cd build && cmake .. && make -j && make test
+  - cd cstreamgeo && mkdir -p build && cd build && cmake .. && make -j && make test
