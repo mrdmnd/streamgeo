@@ -6,6 +6,14 @@
 
 #include "test.h"
 
+void warp_path_printf(const size_t* warp_path, const size_t path_length, const float alignment_cost) {
+    printf("Cost: %f\t\tWarp Path Length: %zu\t\t[", alignment_cost, path_length);
+    for (size_t i = 0; i < path_length; i++) {
+        printf("(%zu, %zu), ", warp_path[2 * i], warp_path[2 * i + 1]);
+    }
+    printf("]\n");
+}
+
 void align_test_small() {
 
     size_t a_n = 8;
@@ -49,11 +57,7 @@ void align_test_small() {
     float* cost = malloc(sizeof(float));
     size_t* path_length = malloc(sizeof(size_t));
     size_t* warp_path = full_align(a, b, cost, path_length);
-    printf("Cost: %f Warp Path Length: %zu [", *cost, *path_length);
-    for (size_t i = 0; i < *path_length; i++) {
-        printf("(%zu, %zu), ", warp_path[2 * i], warp_path[2 * i + 1]);
-    }
-    printf("]\n");
+    warp_path_printf(warp_path, *path_length, *cost);
     assert_int_equal(*path_length, 8);
     assert_true(*cost == 13.0);
     size_t correct[16] = {0, 0, 1, 1, 2, 2, 3, 3, 4, 3, 5, 3, 6, 4, 7, 5};
