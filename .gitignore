@@ -45,5 +45,7 @@
 cstreamgeo/tests/config.h
 
 .idea/
+.idea
+cstreamgeo/.idea/
 build/
 cmake-build-debug/
