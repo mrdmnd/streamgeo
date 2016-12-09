@@ -1,0 +1,11 @@
+language: c
+sudo: false
+compiler:
+  - clang
+
+branches:
+  only:
+    - master
+
+script:
+- mkdir -p build && cd build && cmake .. && make -j && make test
