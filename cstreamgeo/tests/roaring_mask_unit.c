@@ -11,7 +11,7 @@ void create_test() {
     assert_non_null(mask1);
     roaring_mask_destroy(mask1);
 
-    roaring_mask_t* mask2 = roaring_mask_create_from_list(3, 2, 2,   3, 4);
+    roaring_mask_t* mask2 = roaring_mask_create_from_list(3, 2, 2, 3, 4);
     roaring_mask_printf(mask2);
     /*
      * 0 0
@@ -20,7 +20,7 @@ void create_test() {
      *
      * Is represented by (3, 2, roaring([3, 4]))
      */
-     roaring_mask_destroy(mask2);
+    roaring_mask_destroy(mask2);
 }
 
 void index_pairs_test() {
@@ -29,8 +29,8 @@ void index_pairs_test() {
 
 int main() {
     const struct CMUnitTest tests[] = {
-        cmocka_unit_test(create_test),
-        cmocka_unit_test(index_pairs_test),
+            cmocka_unit_test(create_test),
+            cmocka_unit_test(index_pairs_test),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);

@@ -1,5 +1,6 @@
 #ifndef BENCHMARK_H_
 #define BENCHMARK_H_
+
 #include <cstreamgeo/portability.h>
 
 #ifdef IS_X64

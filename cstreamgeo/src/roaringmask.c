@@ -12,7 +12,7 @@ roaring_mask_t* roaring_mask_create(const size_t n_rows, const size_t n_cols, co
     roaring_mask_t* mask = malloc(sizeof(roaring_mask_t));
     mask->n_rows = n_rows;
     mask->n_cols = n_cols;
-    mask->indices = roaring_bitmap_create_with_capacity(initial_capacity);
+    mask->indices = roaring_bitmap_create_with_capacity((uint32_t) initial_capacity);
     return mask;
 }
 
@@ -39,12 +39,8 @@ roaring_mask_t* roaring_mask_create_from_list(const size_t n_rows, const size_t 
  * @param mask Mask to destroy
  */
 void roaring_mask_destroy(const roaring_mask_t* mask) {
-    if (mask) {
-        roaring_bitmap_free(mask->indices);
-        free(mask);
-    } else {
-        log_warn("Attempted to free a null mask pointer.");
-    }
+    roaring_bitmap_free(mask->indices);
+    free((void*) mask);
 }
 
 /**
@@ -56,9 +52,9 @@ void roaring_mask_printf(const roaring_mask_t* mask) {
     size_t n_rows = mask->n_rows;
     size_t n_cols = mask->n_cols;
 
-    for (int i = 0; i < n_rows; i++) {
-        for (int j = 0; j < n_cols; j++) {
-            roaring_bitmap_contains(indices, i * n_cols + j) ? printf("1 ") : printf("0 ");
+    for (size_t i = 0; i < n_rows; i++) {
+        for (size_t j = 0; j < n_cols; j++) {
+            roaring_bitmap_contains(indices, (uint32_t) (i * n_cols + j)) ? printf("1 ") : printf("0 ");
         }
         printf("\n");
     }
@@ -90,6 +86,7 @@ bool _create_tuple_from_index(uint32_t index, void* arg) {
     current_path[*current_point * 2 + 0] = i;
     current_path[*current_point * 2 + 1] = j;
     *current_point += 1;
+    return true;
 }
 
 /**
@@ -100,17 +97,19 @@ bool _create_tuple_from_index(uint32_t index, void* arg) {
  * @return Output sequence of (i, j) index pairs stored [i0, j0, i1, j1, ... iN, jN]
  */
 size_t* roaring_mask_to_index_pairs(const roaring_mask_t* mask, size_t* path_length) {
-    size_t total_points = roaring_bitmap_get_cardinality(mask);
+    size_t total_points = roaring_bitmap_get_cardinality(mask->indices);
     *path_length = total_points;
 
     size_t* path = malloc(2 * sizeof(size_t) * total_points);
 
     _iter_arg_t* arg = malloc(sizeof(_iter_arg_t));
     arg->width = mask->n_cols;
-    arg->current_point = 0;
+    arg->current_point = malloc(sizeof(size_t));
+    *(arg->current_point) = 0;
     arg->current_path = path;
 
     roaring_iterate(mask->indices, _create_tuple_from_index, arg);
+    free(arg->current_point);
     free(arg);
 
     return path;

@@ -25,13 +25,13 @@ bool _eval_dp_cell(uint32_t index, void* arg) {
 
     size_t i = index / n_cols;
     size_t j = index % n_cols;
-    float lat_diff = b_data[2*j+0] - a_data[2*i+0];
-    float lng_diff = b_data[2*j+1] - a_data[2*i+1];
+    float lat_diff = b_data[2 * j + 0] - a_data[2 * i + 0];
+    float lng_diff = b_data[2 * j + 1] - a_data[2 * i + 1];
     float dt = (lng_diff * lng_diff) + (lat_diff * lat_diff);
-    size_t m = (i+1) * dp_table_width + (j+1);
-    float diag_cost  = dp_table[m - dp_table_width - 1];
-    float up_cost    = dp_table[m - dp_table_width];
-    float left_cost  = dp_table[m - 1];
+    size_t m = (i + 1) * dp_table_width + (j + 1);
+    float diag_cost = dp_table[m - dp_table_width - 1];
+    float up_cost = dp_table[m - dp_table_width];
+    float left_cost = dp_table[m - 1];
     if (diag_cost <= up_cost && diag_cost <= left_cost) {
         dp_table[m] = diag_cost + dt;
     } else if (up_cost <= left_cost) {
@@ -62,11 +62,11 @@ float _dtw(const stream_t* a, const stream_t* b, const roaring_mask_t* window, r
     // Table is one index larger than stream on each side to provide easy padding logic.
     const size_t dp_table_height = a_n + 1;
     const size_t dp_table_width = b_n + 1;
-    const size_t dp_size = dp_table_height*dp_table_width;
+    const size_t dp_size = dp_table_height * dp_table_width;
 
     // Set up and value-initialize the DP table to FLT_MAX.
     float* dp_table = malloc(dp_table_height * dp_table_width * sizeof(float));
-    for(int n = 0; n < dp_size; ++n) {
+    for (size_t n = 0; n < dp_size; ++n) {
         dp_table[n] = FLT_MAX;
     }
     dp_table[0] = 0.0;
@@ -80,13 +80,13 @@ float _dtw(const stream_t* a, const stream_t* b, const roaring_mask_t* window, r
         float lat_diff, lng_diff, dt;
         for (size_t i = 0; i < a_n; i++) {
             for (size_t j = 0; j < b_n; j++) {
-                lat_diff = b_data[2*j+0] - a_data[2*i+0];
-                lng_diff = b_data[2*j+1] - a_data[2*i+1];
+                lat_diff = b_data[2 * j + 0] - a_data[2 * i + 0];
+                lng_diff = b_data[2 * j + 1] - a_data[2 * i + 1];
                 dt = (lng_diff * lng_diff) + (lat_diff * lat_diff);
-                m = (i+1) * dp_table_width + (j+1);
-                diag_cost  = dp_table[m - dp_table_width - 1];
-                up_cost    = dp_table[m - dp_table_width];
-                left_cost  = dp_table[m - 1];
+                m = (i + 1) * dp_table_width + (j + 1);
+                diag_cost = dp_table[m - dp_table_width - 1];
+                up_cost = dp_table[m - dp_table_width];
+                left_cost = dp_table[m - 1];
                 if (diag_cost <= up_cost && diag_cost <= left_cost) {
                     dp_table[m] = diag_cost + dt;
                 } else if (up_cost <= left_cost) {
@@ -118,21 +118,21 @@ float _dtw(const stream_t* a, const stream_t* b, const roaring_mask_t* window, r
     size_t u = a_n;
     size_t v = b_n;
     while (u > 0 && v > 0) {
-        size_t idx = (u-1)*b_n + (v-1);
-        roaring_bitmap_add(p->indices, (uint32_t)idx);
-        float diag_cost  = dp_table[(u-1)*dp_table_width + (v-1)];
-        float up_cost    = dp_table[(u-1)*dp_table_width + (v  )];
-        float left_cost  = dp_table[(u  )*dp_table_width + (v-1)];
-        if ( diag_cost <= up_cost && diag_cost <= left_cost ) {
+        size_t idx = (u - 1) * b_n + (v - 1);
+        roaring_bitmap_add(p->indices, (uint32_t) idx);
+        float diag_cost = dp_table[(u - 1) * dp_table_width + (v - 1)];
+        float up_cost = dp_table[(u - 1) * dp_table_width + (v)];
+        float left_cost = dp_table[(u) * dp_table_width + (v - 1)];
+        if (diag_cost <= up_cost && diag_cost <= left_cost) {
             u -= 1;
             v -= 1;
-        } else if ( up_cost <= left_cost ) {
+        } else if (up_cost <= left_cost) {
             u -= 1;
         } else {
             v -= 1;
         }
     }
-    float end_cost = dp_table[dp_table_height*dp_table_width - 1];
+    float end_cost = dp_table[dp_table_height * dp_table_width - 1];
     free(dp_table);
     return end_cost;
 }
@@ -184,23 +184,24 @@ typedef struct {
 bool _expand_cell(uint32_t value, void* arg) {
     // Unpack arg tuple
     _expand_cell_arg* tmp = (_expand_cell_arg*) arg;
-    const size_t radius = tmp->radius;
-    const size_t shrunk_cols   = tmp->shrunk_cols;
+    const int radius = (int) (tmp->radius);
+    const int shrunk_cols = (int) (tmp->shrunk_cols);
     const roaring_mask_t* window_out = tmp->window_out;
 
     // The maximum number we'd see is 2 * 2 * (2r + 1) * (2r + 1) = 16r^2 + 16r + 4
-    uint32_t* included_indices = malloc(sizeof(uint32_t) * 2 * 2 * (2*radius + 1) * (2*radius + 1));
+    uint32_t* included_indices = malloc(sizeof(uint32_t) * 2 * 2 * (2 * radius + 1) * (2 * radius + 1));
     size_t inserted_indices = 0;
 
-    size_t p = 2*(value / shrunk_cols);
-    size_t q = 2*(value % shrunk_cols);
-    for(size_t i = 0; i <= 1; i++) {
-        for(size_t j = 0; j <= 1; j++) {
-             for (int x = -((int) radius); x <= radius; x++) {
-                for (int y = -((int) radius); y <= radius; y++) {
-                    size_t first = (p + x + i);
-                    size_t second = (q + y + j);
-                    if (0 <= first && first < window_out->n_rows && 0 <= second && second < window_out->n_cols) {
+    int p = 2 * (value / shrunk_cols);
+    int q = 2 * (value % shrunk_cols);
+    for (int i = 0; i <= 1; i++) {
+        for (int j = 0; j <= 1; j++) {
+            for (int x = -radius; x <= radius; x++) {
+                for (int y = -radius; y <= radius; y++) {
+                    int first = (p + x + i);
+                    int second = (q + y + j);
+                    if (0 <= first && first < (int) (window_out->n_rows) && 0 <= second &&
+                        second < (int) (window_out->n_cols)) {
                         included_indices[inserted_indices++] = (uint32_t) (first * window_out->n_cols + second);
                     }
                 }
@@ -272,14 +273,14 @@ stream_t* _reduce_by_half(const stream_t* input) {
 
     float lat1, lng1, lat2, lng2;
 
-    for (size_t i = 0; i < input_n-1; i++) {
-        lat1 = input_data[2*i+0];
-        lng1 = input_data[2*i+1];
-        lat2 = input_data[2*i+2];
-        lng2 = input_data[2*i+3];
+    for (size_t i = 0; i < input_n - 1; i++) {
+        lat1 = input_data[2 * i + 0];
+        lng1 = input_data[2 * i + 1];
+        lat2 = input_data[2 * i + 2];
+        lng2 = input_data[2 * i + 3];
         if (i % 2 == 0) {
-            shrunk_data[i+0] = 0.5f*(lat1+lat2);
-            shrunk_data[i+1] = 0.5f*(lng1+lng2);
+            shrunk_data[i + 0] = 0.5f * (lat1 + lat2);
+            shrunk_data[i + 1] = 0.5f * (lng1 + lng2);
         }
     }
     return shrunk_stream;
@@ -310,14 +311,14 @@ float _fast_dtw(const stream_t* a, const stream_t* b, const size_t radius, roari
     const size_t min_size = radius + 2;
 
     if (a_n <= min_size || b_n <= min_size) {
-         // Sets path output variable through side-effects.
+        // Sets path output variable through side-effects.
         return _dtw(a, b, NULL, path);
     } else {
         stream_t* shrunk_a = _reduce_by_half(a);
         stream_t* shrunk_b = _reduce_by_half(b);
 
         // Worse case path is all the way down, then all the way right (minus one because this double-counts corner).
-        roaring_mask_t* shrunk_path = roaring_mask_create(a_n/2, b_n/2, a_n/2 + b_n/2 - 1);
+        roaring_mask_t* shrunk_path = roaring_mask_create(a_n / 2, b_n / 2, a_n / 2 + b_n / 2 - 1);
 
         // Calculate a shrunk path to feed into the expand_window fn
         _fast_dtw(shrunk_a, shrunk_b, radius, shrunk_path);
@@ -351,7 +352,7 @@ float _fast_dtw(const stream_t* a, const stream_t* b, const size_t radius, roari
  * @return Array of the form (i0, j0, i1, j1, i2, j2, ...) with 2*path_length entries.
  */
 size_t* full_align(const stream_t* a, const stream_t* b, float* cost, size_t* path_length) {
-    roaring_mask_t* mask = roaring_mask_create(a->n, b->n, a->n+b->n-1);
+    roaring_mask_t* mask = roaring_mask_create(a->n, b->n, a->n + b->n - 1);
     *cost = _dtw(a, b, NULL, mask);
     size_t* warp_path = roaring_mask_to_index_pairs(mask, path_length);
     return warp_path;
@@ -367,11 +368,12 @@ size_t* full_align(const stream_t* a, const stream_t* b, float* cost, size_t* pa
  * @return Array of the form (i0, j0, i1, j1, i2, j2, ...) with 2*path_length entries.
  */
 size_t* fast_align(const stream_t* a, const stream_t* b, const size_t radius, float* cost, size_t* path_length) {
-    roaring_mask_t* mask = roaring_mask_create(a->n, b->n, a->n+b->n-1);
-    *cost =  _fast_dtw(a, b, radius, mask);
+    roaring_mask_t* mask = roaring_mask_create(a->n, b->n, a->n + b->n - 1);
+    *cost = _fast_dtw(a, b, radius, mask);
     size_t* warp_path = roaring_mask_to_index_pairs(mask, path_length);
     return warp_path;
 }
+
 /**
  * A top level, short-circuiting function that establishes a distance metric on stream data.
  * Returns values in the range [0.0, 1.0] - 0.0 means totally dissimilar, 1.0 means identical.
@@ -404,10 +406,10 @@ float redmond_similarity(const stream_t* a, const stream_t* b, const size_t radi
         return 0.0;
     }
     // If start/mid/endpoints are further apart than 30% of min distance, return zero
-    const float min_distance = 0.3f*MIN(a_stream_distance, b_stream_distance);
+    const float min_distance = 0.3f * MIN(a_stream_distance, b_stream_distance);
     // Start point
-    float lat_diff = b_data[2*(0) + 0] - a_data[2*(0) + 0];
-    float lng_diff = b_data[2*(0) + 1] - a_data[2*(0) + 1];
+    float lat_diff = b_data[2 * (0) + 0] - a_data[2 * (0) + 0];
+    float lng_diff = b_data[2 * (0) + 1] - a_data[2 * (0) + 1];
     if (sqrtf((lng_diff * lng_diff) + (lat_diff * lat_diff)) > min_distance) return 0.0;
     // Midpoint
     lat_diff = b_data[2 * (b_n / 2) + 0] - a_data[2 * (a_n / 2) + 0];
@@ -433,17 +435,19 @@ float redmond_similarity(const stream_t* a, const stream_t* b, const size_t radi
     float unitless_cost, weight, error;
     size_t i, j;
 
-    for(size_t n = 0; n < *path_length; n++) {
-        i = warp_path[2*n]; j = warp_path[2*n+1];
+    for (size_t n = 0; n < *path_length; n++) {
+        i = warp_path[2 * n];
+        j = warp_path[2 * n + 1];
 
-        lat_diff = b_data[2*j+0] - a_data[2*i+0];
-        lng_diff = b_data[2*j+1] - a_data[2*i+1];
+        lat_diff = b_data[2 * j + 0] - a_data[2 * i + 0];
+        lng_diff = b_data[2 * j + 1] - a_data[2 * i + 1];
         unitless_cost = sqrtf((lng_diff * lng_diff) + (lat_diff * lat_diff)) / min_distance;
         error = (float) (1.0 - exp(-unitless_cost * unitless_cost));
 
         // Weight start/end less than the middle, weight sparse points less than dense.
         // This is a product of positional_weight_a * positional_weight_b * sparsity_weight_a * sparsity_weight_b
-        weight = (float) (a_sparsity[i] * b_sparsity[j] * (0.1 + 0.9 * sin(PI * i / a_n)) * (0.1 + 0.9 * sin(PI * j / b_n)));
+        weight = (float) (a_sparsity[i] * b_sparsity[j] * (0.1 + 0.9 * sin(PI * i / a_n)) *
+                          (0.1 + 0.9 * sin(PI * j / b_n)));
         total_weight += weight;
         total_weight_error += (error * weight);
     }

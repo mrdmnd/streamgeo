@@ -18,7 +18,7 @@ stream_t* stream_create_from_list(const size_t n, ...) {
     va_start(args, n);
     stream_t* stream = stream_create(n);
     float arg;
-    for (size_t i = 0; i < 2*n; i++) {
+    for (size_t i = 0; i < 2 * n; i++) {
         arg = (float) va_arg(args, double);
         stream->data[i] = arg;
     }
@@ -28,15 +28,15 @@ stream_t* stream_create_from_list(const size_t n, ...) {
 
 void stream_destroy(const stream_t* stream) {
     free(stream->data);
-    free(stream);
+    free((void*) stream);
 }
 
 void stream_printf(const stream_t* stream) {
     const size_t n = stream->n;
     const float* data = stream->data;
-    printf("Stream contains %d points: [", n);
-    for(size_t i = 0; i < n; i++) {
-        printf("(%f %f), ", data[2*i], data[2*i+1]);
+    printf("Stream contains %zu points: [", n);
+    for (size_t i = 0; i < n; i++) {
+        printf("(%f %f), ", data[2 * i], data[2 * i + 1]);
     }
     printf("]\n");
 }
@@ -55,9 +55,9 @@ float stream_distance(const stream_t* stream) {
     float sum = 0.0f;
     float lat_diff;
     float lng_diff;
-    for(int i = 0; i < s_n-1; i++) {
-        lat_diff = data[2*i+2] - data[2*i+0];
-        lng_diff = data[2*i+3] - data[2*i+1];
+    for (size_t i = 0; i < s_n - 1; i++) {
+        lat_diff = data[2 * i + 2] - data[2 * i + 0];
+        lng_diff = data[2 * i + 3] - data[2 * i + 1];
         sum += sqrt((lng_diff * lng_diff) + (lat_diff * lat_diff));
     }
     return sum;
@@ -80,19 +80,19 @@ float* stream_sparsity(const stream_t* stream) {
     const float* data = stream->data;
     float* sparsity = malloc(sizeof(float) * s_n);
 
-    const float optimal_spacing = stream_distance(stream) / (s_n-1);
+    const float optimal_spacing = stream_distance(stream) / (s_n - 1);
     const float two_over_pi = 0.63661977236f;
     int i, j, k;
     float lat_diff, lng_diff, v;
-    for(int n = 0; n < s_n; n++) {
+    for (int n = 0; n < (int) s_n; n++) {
         i = (n - 1) < 0 ? 1 : n - 1;
         j = n;
-        k = (n + 1) > (int)s_n - 1 ? (int)s_n - 2 : n + 1;
-        lat_diff = data[2*j] - data[2*i];
-        lng_diff = data[2*j + 1] - data[2*i + 1];
+        k = (n + 1) > (int) s_n - 1 ? (int) s_n - 2 : n + 1;
+        lat_diff = data[2 * j] - data[2 * i];
+        lng_diff = data[2 * j + 1] - data[2 * i + 1];
         float d1 = sqrtf((lng_diff * lng_diff) + (lat_diff * lat_diff));
-        lat_diff = data[2*k] - data[2*j];
-        lng_diff = data[2*k + 1] - data[2*j + 1];
+        lat_diff = data[2 * k] - data[2 * j];
+        lng_diff = data[2 * k + 1] - data[2 * j + 1];
         float d2 = sqrtf((lng_diff * lng_diff) + (lat_diff * lat_diff));
         v = (d1 + d2) / (2 * optimal_spacing);
         sparsity[j] = (float) (1.0 - two_over_pi * atan(v));
@@ -104,12 +104,12 @@ void stream_printf_statistics(const stream_t* stream) {
     const size_t n = stream->n;
     const float distance = stream_distance(stream);
     const float* sparsity = stream_sparsity(stream);
-    printf("Stream contains %d points. Total distance is %f. Sparsity array is: [", n, distance);
+    printf("Stream contains %zu points. Total distance is %f. Sparsity array is: [", n, distance);
     for (size_t i = 0; i < n; i++) {
         printf("%f, ", sparsity[i]);
     }
     printf("]\n");
-    free(sparsity);
+    free((void*) sparsity);
 }
 
 /**
@@ -124,8 +124,8 @@ void stream_printf_statistics(const stream_t* stream) {
  */
 float _point_line_distance(float px, float py, float sx, float sy, float ex, float ey) {
     return (sx == ex && sy == ey) ?
-           (px-sx)*(px-sx) + (py-sy)*(py-sy) :
-           fabsf((ex-sx)*(sy-py) - (sx-px)*(ey-sy)) / sqrtf((ex-sx)*(ex-sx) + (ey-sy)*(ey-sy));
+           (px - sx) * (px - sx) + (py - sy) * (py - sy) :
+           fabsf((ex - sx) * (sy - py) - (sx - px) * (ey - sy)) / sqrtf((ex - sx) * (ex - sx) + (ey - sy) * (ey - sy));
 }
 
 /**
@@ -136,15 +136,19 @@ float _point_line_distance(float px, float py, float sx, float sy, float ex, flo
  * @param epsilon Threshold for keeping points (keep if they exceed epsilon distance from line segment bound)
  * @param indices Output object containing indices of keep points.
  */
-void _douglas_peucker(const stream_t* input, const size_t start, const size_t end, const float epsilon, roaring_bitmap_t* indices) {
+void _douglas_peucker(const stream_t* input, const size_t start, const size_t end, const float epsilon,
+                      roaring_bitmap_t* indices) {
     const float* input_data = input->data;
 
-    float d_max = 0.0f; size_t index_max = start;
-    float sx = input_data[2*start]; float sy = input_data[2*start+1];
-    float ex = input_data[2*end];   float ey = input_data[2*end+1];
+    float d_max = 0.0f;
+    size_t index_max = start;
+    float sx = input_data[2 * start];
+    float sy = input_data[2 * start + 1];
+    float ex = input_data[2 * end];
+    float ey = input_data[2 * end + 1];
     // Identify the point with largest distance from its neighbors.
-    for (size_t i = start+1; i < end; ++i) {
-        float d = _point_line_distance(input_data[2*i], input_data[2*i+1], sx, sy, ex, ey);
+    for (size_t i = start + 1; i < end; ++i) {
+        float d = _point_line_distance(input_data[2 * i], input_data[2 * i + 1], sx, sy, ex, ey);
         if (d > d_max) {
             index_max = i;
             d_max = d;
@@ -157,7 +161,7 @@ void _douglas_peucker(const stream_t* input, const size_t start, const size_t en
             _douglas_peucker(input, start, index_max, epsilon, indices);
         }
         // Add the significant point.
-        roaring_bitmap_add(indices, (uint32_t)index_max);
+        roaring_bitmap_add(indices, (uint32_t) index_max);
         // Recurse right-half.
         if (end - index_max > 1) {
             _douglas_peucker(input, index_max, end, epsilon, indices);
@@ -177,17 +181,17 @@ stream_t* downsample_ramer_douglas_peucker(const stream_t* input, const float ep
 
     roaring_bitmap_t* indices = roaring_bitmap_create();
     roaring_bitmap_add(indices, 0);
-    roaring_bitmap_add(indices, (uint32_t)input_n-1);
-    _douglas_peucker(input, 0, input_n-1, epsilon, indices);
+    roaring_bitmap_add(indices, (uint32_t) input_n - 1);
+    _douglas_peucker(input, 0, input_n - 1, epsilon, indices);
     size_t n_max = roaring_bitmap_get_cardinality(indices);
     size_t n = 0;
     stream_t* output = stream_create(n_max);
     float* output_data = output->data;
 
     for (size_t i = 0; i < input_n; i++) {
-        if (roaring_bitmap_contains(indices, (uint32_t)i)) {
-            output_data[2*n] = input_data[2*i];
-            output_data[2*n+1] = input_data[2*i+1];
+        if (roaring_bitmap_contains(indices, (uint32_t) i)) {
+            output_data[2 * n] = input_data[2 * i];
+            output_data[2 * n + 1] = input_data[2 * i + 1];
             n++;
         }
     }

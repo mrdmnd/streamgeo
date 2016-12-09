@@ -94,7 +94,8 @@ size_t* full_align(const stream_t* a, const stream_t* b, float* cost, size_t* pa
  * Larger radius values are increasingly more precise, but slower.
  * Allocates memory; caller is responsible for cleanup.
  */
-size_t* fast_align(const stream_t* a, const stream_t* b, const size_t radius, float* cost, size_t* path_length);  // TODO
+size_t*
+fast_align(const stream_t* a, const stream_t* b, const size_t radius, float* cost, size_t* path_length);  // TODO
 
 /**
  * Establishes a "common-sense" distance metric on two streams.
