@@ -1,10 +1,9 @@
 #ifndef ROARINGMASK_H
 #define ROARINGMASK_H
-#include <roaring.h>
-#include <stdio.h>
-#include <dbg.h>
 
-#include <cstreamgeo/portability.h>
+#include <roaring.h>
+#include <stdarg.h>
+
 /* Example masks:
  *
  * 0 0
@@ -36,7 +35,7 @@ roaring_mask_t* roaring_mask_create(const size_t n_rows, const size_t n_cols, co
 /**
  * Creates a new roaring_mask object from a list of ravelled indices.
  */
-roaring_mask_t* roaring_mask_create_from_list(const size_t n_rows, const size_t n_cols, ...);
+roaring_mask_t* roaring_mask_create_from_list(const size_t n_rows, const size_t n_cols, const size_t n_indices, ...);
 
 /**
  * Frees the memory allocated by `m`.
@@ -62,6 +61,6 @@ void roaring_mask_printf(const roaring_mask_t* mask);
  *       If the structure of the grid is non-standard, expect this method to return gobbledygook.
  *       TODO: write assertion that a roaring_mask represents a valid path.
  */
-size_t* roaring_mask_to_index_pair_sequence(const roaring_mask_t* mask, size_t* path_length);
+size_t* roaring_mask_to_index_pairs(const roaring_mask_t* mask, size_t* path_length);
 
 #endif

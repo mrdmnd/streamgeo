@@ -1,7 +1,10 @@
 #ifndef CSTREAMGEO_H
 #define CSTREAMGEO_H
 
-#include <cstreamgeo/version.h>
+#include <math.h>
+#include <float.h>
+
+#include <cstreamgeo/utilc.h>
 #include <cstreamgeo/roaringmask.h>
 
 /**
@@ -18,43 +21,43 @@ typedef struct stream_s {
 /* -------------- Utility Functions --------------- */
 
 /**
- * Creates a new stream with set capacity; all data is zeroed.
+ * Creates a new stream with n points.
  */
-stream_t* stream_create(const size_t cap);
+stream_t* stream_create(const size_t n);
 
 /**
  * Create a stream from a list of floats. Number of POINTs is equal to n, but list must have 2n elements. 
  * Allocates memory; caller is responsible for cleanup.
  */
-stream_t* stream_create_from_list(const size_t n, ...);
+stream_t* stream_create_from_list(const size_t n, ...); // TODO
 
 /**
  * Frees the memory allocated by `s`.
  */
-void stream_destroy(const stream_t* s);
+void stream_destroy(const stream_t* stream); // TODO
 
 /**
- * Print the (entire) contents of the stream, prefixed with the number of points.
+ * Print the (entire) contents of the stream.
  */
-void stream_printf(const stream_t* s);
+void stream_printf(const stream_t* stream); // TODO
 
 /**
  * Copies a stream. 
  * Allocates memory; caller is responsible for cleanup.
  */
-stream_t* stream_copy(const stream_t* s);
+stream_t* stream_copy(const stream_t* stream); // TODO
 
 /**
  * Write the stream to an output pointer. Output buffer should have enough space allocated. 
  * Returns the number of bytes that were written.
  */
-size_t stream_serialize(const stream_t* s, char* buffer);
+size_t stream_serialize(const stream_t* stream, char* buffer); // TODO
 
 /**
  * Read the input buffer to a stream_t object. 
  * This does memory allocation. Caller is responsible for management.
  */
-stream_t* stream_deserialize(const void* buffer);
+stream_t* stream_deserialize(const void* buffer); // TODO
 
 
 
@@ -64,26 +67,36 @@ stream_t* stream_deserialize(const void* buffer);
 /**
  * Returns the length of the stream in its natural coordinate system.
  */
-float stream_length(const stream_t* s);
+float stream_distance(const stream_t* stream);
 
 /**
  * Returns an array with "sparsity" values for each point in the stream.
  * Allocates memory; caller is responsible for cleanup.
  */
-float* stream_sparsity(const stream_t* s);
+float* stream_sparsity(const stream_t* stream);
 
 /**
- * Returns the cost of (exactly) optimally aligning stream a to stream b.
+ * Returns the optimal alignment of stream a to stream b.
  * Uses the full O(M*N) dynamic timewarping algorithm.
+ * Sets the output parameter `cost` equal to the alignment cost.
+ * Allocates memory; caller is responsible for cleanup.
  */
-float full_align(const stream_t* a, const stream_t* b, roaring_mask_t* alignment);
+size_t* full_align(const stream_t* a, const stream_t* b, float* cost, size_t* path_length); // TODO
 
 /**
- * Returns the cost of (approximately) optimally aligning stream a to stream b.
+ * Returns the (approximately) optimal alignment of stream a to stream b.
  * Uses a fast dynamic timewarping algorithm by S. Salvador.
  * Larger radius values are increasingly more precise, but slower.
+ * Allocates memory; caller is responsible for cleanup.
  */
-float fast_align(const stream_t* a, const stream_t* b, const size_t radius, roaring_mask_t* alignment);
+size_t* fast_align(const stream_t* a, const stream_t* b, const size_t radius, float* cost, size_t* path_length);  // TODO
+
+/**
+ * Establishes a "common-sense" distance metric on two streams.
+ * Larger values for radius lead to slower code, but more accurate DTW alignment.
+ * Short circuits on common cases.
+ */
+float redmond_similarity(const stream_t* a, const stream_t* b, const size_t radius); // TODO
 
 
 /* -------------- Up/downsampling routines ----------------- */
@@ -96,21 +109,21 @@ void downsample_ramer_douglas_peucker(const stream_t* input, const float epsilon
 /**
  * Downsamples a stream quickly with O(n) radial-distance simplification.
  */
-void downsample_radial_distance(const stream_t* input, const float epsilon, stream_t* output);
+void downsample_radial_distance(const stream_t* input, const float epsilon, stream_t* output); // TODO
 
 /**
  * Downsamples a stream *very* quickly (O(n), but with very good constant) by selecting all points at index zero mod `factor`.
  */
-void downsample_fixed_factor(const stream_t* input, const size_t factor, stream_t* output);
+void downsample_fixed_factor(const stream_t* input, const size_t factor, stream_t* output); // TODO
 
 /**
  * Upsamples a stream by a fixed factor. Fills in points by linear interpolation.
  */
-void upsample_fixed_factor(const stream_t* input, const size_t factor, stream_t* output);
+void upsample_fixed_factor(const stream_t* input, const size_t factor, stream_t* output); // TODO
 
 /*
  * Resamples a stream by the rational fraction M / N by upsampling at factor M and downsamping at factor N.
  */
-void resample_fixed_factor(const stream_t* input, const size_t m, const size_t n, stream_t* output);
+void resample_fixed_factor(const stream_t* input, const size_t m, const size_t n, stream_t* output);  // TODO
 
 #endif

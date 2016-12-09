@@ -19,7 +19,8 @@ find_package(CTargets)
 find_package(Options)
 find_package(LTO)
 
-include_directories(include)
+include_directories(include /usr/local/include/roaring/)
+link_directories(/usr/local/lib/)
 install(DIRECTORY include/${STREAMGEO_LIB_NAME} DESTINATION include)
 
 enable_testing()
