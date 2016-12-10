@@ -200,8 +200,7 @@ bool _expand_cell(uint32_t value, void* arg) {
                 for (int y = -radius; y <= radius; y++) {
                     int first = (p + x + i);
                     int second = (q + y + j);
-                    if (0 <= first && first < (int) (window_out->n_rows) && 0 <= second &&
-                        second < (int) (window_out->n_cols)) {
+                    if (0 <= first && first < (int) (window_out->n_rows) && 0 <= second && second < (int) (window_out->n_cols)) {
                         included_indices[inserted_indices++] = (uint32_t) (first * window_out->n_cols + second);
                     }
                 }

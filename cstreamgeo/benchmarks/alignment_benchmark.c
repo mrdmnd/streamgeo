@@ -76,19 +76,26 @@ void fast_random_alignment_benchmark(const size_t u_n, const size_t v_n, const s
 
 // Benchmark files aren't very useful until they have real code.
 int main() {
+    //full_random_alignment_benchmark(2500, 2500, 100); 
+    // 100 iterations of 2500 by 2500 full time warp with path took 5815.995000 millis, average=58.159950
+    fast_random_alignment_benchmark(30000, 30000, 1, 3);
+    //100 iterations of 2500 by 2500 fast time warp with path took 1842.140000 millis, average=18.421400
 /*
     for (size_t i = 100; i < 1000; i += 10) {
         full_random_alignment_benchmark(i, i, 30);
     }
+
     for (size_t i = 1000; i <= 3000; i += 100) {
         full_random_alignment_benchmark(i, i, 30);
     }
-*/
+
     for (size_t i = 100; i < 1000; i += 10) {
         fast_random_alignment_benchmark(i, i, 0, 30);
     }
+
     for (size_t i = 1000; i <= 3000; i += 100) {
         fast_random_alignment_benchmark(i, i, 0, 30);
     }
+ */
 }
 
