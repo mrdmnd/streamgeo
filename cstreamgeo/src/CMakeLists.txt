@@ -6,6 +6,7 @@ endif ()
 
 set(STREAMGEO_SRC
         roaringmask.c
+        stridedmask.c
         similarity.c
         stream.c)
 

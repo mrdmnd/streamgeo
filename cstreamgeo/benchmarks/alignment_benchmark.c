@@ -103,11 +103,11 @@ void accuracy_benchmark(const size_t u_n, const size_t v_n, const size_t radius_
 
         free(fast_cost);
         free(fast_path_length);
-        free(fast_warp_path);
+        free((void*) fast_warp_path);
     }
     free(full_cost);
     free(full_path_length);
-    free(full_warp_path);
+    free((void*) full_warp_path);
     stream_destroy(u);
     stream_destroy(v);
 }
@@ -128,16 +128,17 @@ int main() {
     }
 
     for (size_t i = 100; i < 1000; i += 10) {
-        fast_random_alignment_benchmark(i, i, 0, 30);
+        fast_random_alignment_benchmark(i, i, 10, 30);
     }
 
     for (size_t i = 1000; i <= 3000; i += 100) {
-        fast_random_alignment_benchmark(i, i, 0, 30);
+        fast_random_alignment_benchmark(i, i, 10, 30);
     }
- */
 
-  accuracy_benchmark(400, 400, 15);
-  accuracy_benchmark(1000, 1000, 15);
-  accuracy_benchmark(2000, 2000, 20);
+*/
+fast_random_alignment_benchmark(3000, 3000, 10, 50);
+//  accuracy_benchmark(400, 400, 15);
+//  accuracy_benchmark(1000, 1000, 15);
+//  accuracy_benchmark(2000, 2000, 20);
 }
 

@@ -4,14 +4,7 @@
 #include <roaring.h>
 #include <stdarg.h>
 
-/* Example masks:
- *
- * 0 0
- * 0 1
- * 1 0
- *
- * Is represented by (3, 2, roaring([3, 4]))
- *
+ /*
  * 1 0 0 0
  * 0 1 0 0
  * 0 0 1 0
