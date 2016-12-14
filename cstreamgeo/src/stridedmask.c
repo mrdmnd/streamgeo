@@ -1,5 +1,6 @@
 #include <cstreamgeo/dbg.h>
 #include <cstreamgeo/stridedmask.h>
+#include <cstreamgeo/utilc.h>
 
 strided_mask_t* strided_mask_create(const size_t n_rows, const size_t n_cols) {
     // NOTE: CALLER MUST SET first_start_col and first_end_col before using mask meaningfully.
@@ -76,4 +77,50 @@ size_t* strided_mask_to_index_pairs(const strided_mask_t* mask, size_t* path_len
     }
     *path_length = index / 2;
     return path;
+}
+
+void _expand_strided_mask(strided_mask_t* mask, const size_t radius) {
+    size_t n_rows_initial = mask->n_rows;
+    size_t n_cols_initial = mask->n_cols;
+    size_t first_start_col_initial = mask->first_start_col;
+    size_t first_end_col_initial = mask->first_end_col;
+    uint8_t* start_deltas_initial = mask->start_deltas;
+    uint8_t* end_deltas_initial = mask->end_deltas;
+
+    size_t n_rows_upsampled = 2 * n_rows_initial;
+    size_t n_cols_upsampled = 2 * n_cols_initial;
+    size_t first_start_col_upsampled = 2*first_start_col_initial;
+    size_t first_end_col_upsampled = 2*first_end_col_initial + 1;
+    uint8_t* start_deltas_upsampled = malloc(n_rows_upsampled * sizeof(uint8_t));
+    uint8_t* end_deltas_upsampled = malloc(n_rows_upsampled * sizeof(uint8_t));
+
+    // First, compute and populate up-sampled mask directly:
+    // TODO: change this to run from row = 0 to n_rows_final? maybe benchmark
+    for (size_t row = 0; row < n_rows_initial; row++) {
+        start_deltas_upsampled[2*row] = 2*start_deltas_initial[row];
+        start_deltas_upsampled[2*row+1] = 0;
+        end_deltas_upsampled[2*row] = 2*end_deltas_initial[row];
+        end_deltas_upsampled[2*row+1] = 0;
+    }
+
+    // Decompress delta encoding for upsampled:
+    // TODO: can this be done in delta-encoded space? that'd be freakin' magical
+    size_t* start_cols_upsampled = malloc(n_rows_upsampled * sizeof(uint8_t));
+    size_t* end_cols_upsampled = malloc(n_rows_upsampled * sizeof(uint8_t));
+    size_t start = first_start_col_upsampled;
+    size_t end = first_start_col_upsampled;
+    for (size_t row = 0; row < n_rows_upsampled; row++) {
+        start += start_deltas_upsampled[row];
+        start_cols_upsampled[row] = start;
+
+        end += end_deltas_upsampled[row];
+        end_cols_upsampled[row] = start;
+    }
+
+    for (size_t row = 0; row < n_rows_upsampled; row++) {
+        size_t start_ind_back_row = start_cols_upsampled[MAX(row-radius, 0)];
+        size_t end_ind_forward_row = end_cols_upsampled[MIN(row + radius, n_rows_upsampled)];
+
+    }
+
 }

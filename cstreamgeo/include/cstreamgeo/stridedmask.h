@@ -176,3 +176,112 @@ void strided_mask_printf(const strided_mask_t* mask);
  * Caller is responsible for cleaning up the memory returned.
  */
 size_t* strided_mask_to_index_pairs(const strided_mask_t* mask, size_t* path_length);
+
+
+/**
+ * Upsamples the mask by a factor of two, then dilates the new cells by `radius` in each direction.
+ * Operates in place; but does realloc the deltas array, so it will not allocate a new pointer that needs to be managed
+ * but more space will be used up
+ * Example of r=1 dilation https://www.dropbox.com/s/c8tqctwxyi80uub/Screenshot%202016-12-13%2015.40.53.png?dl=0
+ * Worked example:
+ * Input:
+ *
+ *   0 1 2 3 4 5
+ * 0 . * * . . .
+ * 1 . * * * . .
+ * 2 . * * * . .
+ * 3 . . * * . .
+ * 4 . . * * * .
+ * Representationally, this is
+ * (1, 2),
+ * [0, 0, 0, 1, 0],
+ * [0, 1, 0, 0, 1]
+ * First, input is upsampled in place to become:
+ *
+ *   0 1 2 3 4 5 6 7 8 9 0 1
+ * 0 . . * * * * . . . . . .
+ * 1 . . * * * * . . . . . .
+ * 2 . . * * * * * * . . . .
+ * 3 . . * * * * * * . . . .
+ * 4 . . * * * * * * . . . .
+ * 5 . . * * * * * * . . . .
+ * 6 . . . . * * * * . . . .
+ * 7 . . . . * * * * . . . .
+ * 8 . . . . * * * * * * . .
+ * 9 . . . . * * * * * * . .
+ * Representationally, this is
+ * (2, 5),  get there as (2*old_start, 2*old_end+1)
+ * [0, 0, 0, 0, 0, 0, 2, 0, 0, 0] (get there by doubling every element above, then inserting zeros after them)
+ * [0, 0, 2, 0, 0, 0, 0, 0, 2, 0]
+ *
+ * Next, that upsampled mask is dilated by a square structuring element parameterized by "radius"
+ * Dilation works logically like this:
+ * 1) We choose a logical structuring element to dilate by. For now, we only support square dilation.
+ *    The square structuring element for r = 1 looks like this:
+ *      * * *
+ *      * * *
+ *      * * *
+ *    The square structuring element for r = 2 looks like this:
+ *      * * * * *
+ *      * * * * *
+ *      * * * * *
+ *      * * * * *
+ *      * * * * *
+ *
+ * 2) For each cell set in the current strided mask window, set all elements in
+ *    its structuring element neighborhood to true
+ *
+ * Example: suppose a radius-1 dilation. Our upsampled mask becomes extruded by the @ characters
+ *   0 1 2 3 4 5 6 7 8 9 0 1
+ * 0 . @ * * * * @ . . . . .
+ * 1 . @ * * * * @ @ @ . . .
+ * 2 . @ * * * * * * @ . . .
+ * 3 . @ * * * * * * @ . . .
+ * 4 . @ * * * * * * @ . . .
+ * 5 . @ * * * * * * @ . . .
+ * 6 . @ @ @ * * * * @ . . . <-- delta for this start entry started as 2. look back RADIUS rows. it was 0. difference is new-old = (2 - 0)
+ * 7 . . . @ * * * * @ @ @ .
+ * 8 . . . @ * * * * * * @ .
+ * 9 . . . @ * * * * * * @ .
+ *
+ * representation is
+ * (2-radius, 5+radius)
+ * [0, 0, 0, 0, 0, 0, 0, 2, 0, 0]
+ * TEMP: delete soon
+ * [0, 0, 2, 0, 0, 0, 0, 0, 2, 0, 0] -->
+ * [0, 2, 0, 0, 0, 0, 0, 2, 0, 0] --> find out where it 'changes sign' more or less (derivative)
+ * ==
+ * [0, 2, 0, 0, 0, 0, 0, 0, 2, 0]
+ *
+ * Suppose a radius-2 dilation. Our upsampled mask becomes extruded by the @ characters:
+ *   0 1 2 3 4 5 6 7 8 9 0 1
+ * 0 @ @ * * * * @ @ @ @ . . <-- endpoint here is radius + end_col @ row=current_row+radius; alternatively, it's sum(deltas) from current_row to MIN(current_row + radius, last_row) + radius
+ * 1 @ @ * * * * @ @ @ @ . . <-- endpoint here is radius + end_col @ row=current_row+
+ * 2 @ @ * * * * * * @ @ . .
+ * 3 @ @ * * * * * * @ @ . .
+ * 4 @ @ * * * * * * @ @ . .
+ * 5 @ @ * * * * * * @ @ . .
+ * 6 @ @ @ @ * * * * @ @ @ @
+ * 7 @ @ @ @ * * * * @ @ @ @
+ * 8 . . @ @ * * * * * * @ @
+ * 9 . . @ @ * * * * * * @ @
+ *
+ * representation is
+ * (2 - radius, 5 + radius)
+ * end_col deltas from upsampling
+ * [0, 0, 2, 0, 0, 0, 0, 0, 2, 0] --> pad with `radius` zeros on (correct) end or start -->
+ * [0, 0, 2, 0, 0, 0, 0, 0, 2, 0, 0, 0] --> compute rolling window sum of window width radius (a_new = b_old + c_old + ... for radius things up)
+ * [<= _+ _
+ * [2, 2, 0, 0, 0, 0, 2, 2, 0, 0]  --> after doing the window sum store, add `radius` to each value
+ *  == [4, 4, 2, 2, 2, 2, 4, 4, 2, 2]
+ *  delta to get to row i == (this value[i] - this_value[i-1]) + (delta[i])?
+ *
+ * new  offsets
+ * [0, 0, 0, 0, 0, 0, 0, 0, 2, 0]
+ * [0, 0, 0, 0, 0, 0, 2, 0, 0, 0]
+ *
+ * @param mask
+ * @param radius
+ * @return
+ */
+void _expand_strided_mask(strided_mask_t* mask, const size_t radius);
