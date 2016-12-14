@@ -271,11 +271,17 @@ size_t* strided_mask_to_index_pairs(const strided_mask_t* mask, size_t* path_len
  *
  * START CASE
  * given start_delta array of [0, 0, 0, 0, 0, 0, 2, 0, 0, 0] and radius 2, end up at [0, 0, 0, 0, 0, 0, 2, 0, 0, 0]
- * [a0, a1, a2, a3, a4, a5, a6, a7, a8, a9]
+ * [a_0, a_1, a_2, a_3, a_4, a_5, a_6, a_7, a_8, a_9] with radius r
  * --> pad with 'radius'  zeros at beginning
- * [0,  0,  a0, a1, a2, a3, a4, a5, a6, a7, a8, a9]
- * --> compute rolling window sum of window `width`
- * [0 + a0, a0 + a1, a1 + a2, a2 + a3, ...      a7 + a8, a8 + a9]
+ * [0,  0,  0, ..., 0, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9]
+ *  ---  r copies ---
+ *
+ * partial sums are
+ * a0,
+ * a0 + a1,
+ * ... a0 + a1 + .. a_r, a1
+ * --> compute sum of window of length r
+ * [0 + a0, a0 + a1 + ... ar, a1 + a2 + ... a(r+1), ...      a9-r+1 + a9]
  * --> compute first difference of above
  * [(a0+a1)-(0+a0), (a1+a2)-(a0+a1), (a2+a3)-(a1+a2), ... (a8+a9)-(a7+a8)] =
  * [(a1 - 0), (a2 - a0), ... (a9 - a7)]
