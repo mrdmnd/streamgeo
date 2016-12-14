@@ -247,10 +247,6 @@ size_t* strided_mask_to_index_pairs(const strided_mask_t* mask, size_t* path_len
  * representation is
  * (2-radius, 5+radius)
  * [0, 0, 0, 0, 0, 0, 0, 2, 0, 0]
- * TEMP: delete soon
- * [0, 0, 2, 0, 0, 0, 0, 0, 2, 0, 0] -->
- * [0, 2, 0, 0, 0, 0, 0, 2, 0, 0] --> find out where it 'changes sign' more or less (derivative)
- * ==
  * [0, 2, 0, 0, 0, 0, 0, 0, 2, 0]
  *
  * Suppose a radius-2 dilation. Our upsampled mask becomes extruded by the @ characters:
@@ -268,17 +264,43 @@ size_t* strided_mask_to_index_pairs(const strided_mask_t* mask, size_t* path_len
  *
  * representation is
  * (2 - radius, 5 + radius)
- * end_col deltas from upsampling
- * [0, 0, 2, 0, 0, 0, 0, 0, 2, 0] --> pad with `radius` zeros on (correct) end or start -->
- * [0, 0, 2, 0, 0, 0, 0, 0, 2, 0, 0, 0] --> compute rolling window sum of window width radius (a_new = b_old + c_old + ... for radius things up)
- * [<= _+ _
- * [2, 2, 0, 0, 0, 0, 2, 2, 0, 0]  --> after doing the window sum store, add `radius` to each value
- *  == [4, 4, 2, 2, 2, 2, 4, 4, 2, 2]
- *  delta to get to row i == (this value[i] - this_value[i-1]) + (delta[i])?
- *
- * new  offsets
  * [0, 0, 0, 0, 0, 0, 0, 0, 2, 0]
  * [0, 0, 0, 0, 0, 0, 2, 0, 0, 0]
+ *
+ *
+ *
+ * START CASE
+ * given start_delta array of [0, 0, 0, 0, 0, 0, 2, 0, 0, 0] and radius 2, end up at [0, 0, 0, 0, 0, 0, 2, 0, 0, 0]
+ * [a0, a1, a2, a3, a4, a5, a6, a7, a8, a9]
+ * --> pad with 'radius'  zeros at beginning
+ * [0,  0,  a0, a1, a2, a3, a4, a5, a6, a7, a8, a9]
+ * --> compute rolling window sum of window `width`
+ * [0 + a0, a0 + a1, a1 + a2, a2 + a3, ...      a7 + a8, a8 + a9]
+ * --> compute first difference of above
+ * [(a0+a1)-(0+a0), (a1+a2)-(a0+a1), (a2+a3)-(a1+a2), ... (a8+a9)-(a7+a8)] =
+ * [(a1 - 0), (a2 - a0), ... (a9 - a7)]
+ * --> stick a zero on the front
+ * [0, (a1 - 0), (a2 - a0), ... (a9 - a7)]
+ *
+ *
+ * end_col deltas from upsampling
+ * [0, 0, 2, 0, 0, 0, 0, 0, 2, 0]
+ * --> pad with `radius` zeros on (correct) end or start -->
+ * [0, 0, 2, 0, 0, 0, 0, 0, 2, 0, 0, 0]
+ * --> compute rolling window sum of window width radius (a_new = b_old + c_old + ... for radius things up)
+ * [2, 2, 0, 0, 0, 0, 2, 2, 0, 0]
+ *  compute first difference of above, toss a zero on the fron
+ *  first difference:
+ * [ 0,-2, 0, 0, 0, 2, 0,-2, 0  ]
+ *  toss a zero in at beginning, then ADD UP original end_col_deltas from upsampling
+ * [0, 0,-2, 0, 0, 0, 2, 0,-2, 0] +
+ * [0, 0, 2, 0, 0, 0, 0, 0, 2, 0] =
+ * [0, 0, 0, 0, 0, 0, 2, 0, 0, 0] TADAA
+ *
+ *
+ *
+ * To get new deltas from upsampled deltas: pad upsampled deltas with `radius` zeros on start (for start deltas) or end  (for end)
+ * Compute rolling window sum of window width radius
  *
  * @param mask
  * @param radius

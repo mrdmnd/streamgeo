@@ -103,23 +103,9 @@ void _expand_strided_mask(strided_mask_t* mask, const size_t radius) {
         end_deltas_upsampled[2*row+1] = 0;
     }
 
-    // Decompress delta encoding for upsampled:
-    // TODO: can this be done in delta-encoded space? that'd be freakin' magical
-    size_t* start_cols_upsampled = malloc(n_rows_upsampled * sizeof(uint8_t));
-    size_t* end_cols_upsampled = malloc(n_rows_upsampled * sizeof(uint8_t));
-    size_t start = first_start_col_upsampled;
-    size_t end = first_start_col_upsampled;
     for (size_t row = 0; row < n_rows_upsampled; row++) {
-        start += start_deltas_upsampled[row];
-        start_cols_upsampled[row] = start;
-
-        end += end_deltas_upsampled[row];
-        end_cols_upsampled[row] = start;
-    }
-
-    for (size_t row = 0; row < n_rows_upsampled; row++) {
-        size_t start_ind_back_row = start_cols_upsampled[MAX(row-radius, 0)];
-        size_t end_ind_forward_row = end_cols_upsampled[MIN(row + radius, n_rows_upsampled)];
+        size_t start_ind_back_row =
+        size_t end_ind_forward_row =
 
     }
 
