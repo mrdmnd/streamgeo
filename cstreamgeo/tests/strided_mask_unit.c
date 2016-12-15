@@ -8,32 +8,32 @@
 
 void create_test() {
     strided_mask_t* mask1 = strided_mask_create(2, 3);
-    mask1->first_start_col = 0;
-    mask1->first_end_col = 1;
     assert_non_null(mask1);
     strided_mask_destroy(mask1);
 
-    strided_mask_t* mask2 = strided_mask_create_from_list(5, 6,  0, 2,   0, 1, 0, 1, 0,  0, 1, 0, 2, 0);
-    strided_mask_printf(mask2);
-
-    /* 5 Rows, 6 Columsn.
-     * First start, end indices: (0, 2).
-     * The increment of the start and end indices for each row
-     * (0, 0)
-     * (1, 1)
-     * (0, 0)
-     * (1, 2)
-     * (0, 0)
+    /*
      *   0 1 2 3 4 5
-     * 0 * * * . . . <-- start at col 0, end at col 2
-     * 1 . * * * . . <-- start moves up 1, end moves up 1
-     * 2 . * * * . . <-- start moves up 0, end moves up 0
+     * 0 * * * . . .
+     * 1 . * * * . .
+     * 2 . * * * . .
      * 3 . . * * * *
      * 4 . . * * * *
      */
+    strided_mask_t* mask2 = strided_mask_create_from_list(5, 6,   0, 1, 1, 2, 2,  2, 3, 3, 5, 5);
+    strided_mask_printf(mask2);
     strided_mask_destroy(mask2);
 
-
+    /*
+     *   0 1 2 3 4 5
+     * 0 * . . . . .
+     * 1 * * . . . .
+     * 2 . * . . . .
+     * 3 . * * * . .
+     * 4 . . . . * *
+     */
+    strided_mask_t* mask3 = strided_mask_create_from_list(5, 6,  0, 0, 1, 1, 4,  0, 1, 1, 3, 5);
+    strided_mask_printf(mask3);
+    strided_mask_destroy(mask3);
 }
 
 void index_pairs_test() {
@@ -45,9 +45,7 @@ void index_pairs_test() {
      * 3 . * * * . .
      * 4 . . . . * *
      */
-
-
-    strided_mask_t* mask = strided_mask_create_from_list(5, 6,  0, 0,   0, 0, 1, 0, 3,  0, 1, 0, 2, 2);
+    strided_mask_t* mask = strided_mask_create_from_list(5, 6,  0, 0, 1, 1, 4,  0, 1, 1, 3, 5);
     strided_mask_printf(mask);
 
 
@@ -64,12 +62,103 @@ void index_pairs_test() {
     strided_mask_destroy(mask);
 }
 
+void expand_radius_zero_test() {
+    // Expansion by radius zero still is an upscale by 2x
+    /* Input:
+     *   0 1 2 3 4 5
+     * 0 . * * . . .
+     * 1 . * * * . .
+     * 2 . * * * . .
+     * 3 . . * * . .
+     * 4 . . * * * .
+     * Output:
+     *   0 1 2 3 4 5 6 7 8 9 0 1
+     * 0 . . * * * * . . . . . .
+     * 1 . . * * * * . . . . . .
+     * 2 . . * * * * * * . . . .
+     * 3 . . * * * * * * . . . .
+     * 4 . . * * * * * * . . . .
+     * 5 . . * * * * * * . . . .
+     * 6 . . . . * * * * . . . .
+     * 7 . . . . * * * * . . . .
+     * 8 . . . . * * * * * * . .
+     * 9 . . . . * * * * * * . .
+     */
+    strided_mask_t* mask = strided_mask_create_from_list(5, 6,  1, 1, 1, 2, 2,  2, 3, 3, 3, 4);
+    strided_mask_printf(mask);
+    strided_mask_t* expanded = strided_mask_expand(mask, 0);
+    strided_mask_printf(expanded);
+    strided_mask_destroy(mask);
+    strided_mask_destroy(expanded);
+}
 
+void expand_radius_one_test() {
+    /* Input:
+     *   0 1 2 3 4 5
+     * 0 . * * . . .
+     * 1 . * * * . .
+     * 2 . * * * . .
+     * 3 . . * * . .
+     * 4 . . * * * .
+     *
+     * Output:
+     *   0 1 2 3 4 5 6 7 8 9 0 1
+     * 0 . * * * * * * . . . . .
+     * 1 . * * * * * * * * . . .
+     * 2 . * * * * * * * * . . .
+     * 3 . * * * * * * * * . . .
+     * 4 . * * * * * * * * . . .
+     * 5 . * * * * * * * * . . .
+     * 6 . * * * * * * * * . . .
+     * 7 . . . * * * * * * * * .
+     * 8 . . . * * * * * * * * .
+     * 9 . . . * * * * * * * * .
+     */
+    strided_mask_t* mask = strided_mask_create_from_list(5, 6,  1, 1, 1, 2, 2,  2, 3, 3, 3, 4);
+    strided_mask_printf(mask);
+    strided_mask_t* expanded = strided_mask_expand(mask, 1);
+    strided_mask_printf(expanded);
+    strided_mask_destroy(mask);
+    strided_mask_destroy(expanded);
+
+}
+void expand_radius_two_test() {
+    /* Input:
+     *   0 1 2 3 4 5
+     * 0 . * * . . .
+     * 1 . * * * . .
+     * 2 . * * * . .
+     * 3 . . * * . .
+     * 4 . . * * * .
+     *
+     * Output:
+     *   0 1 2 3 4 5 6 7 8 9 0 1
+     * 0 * * * * * * * * * * . .
+     * 1 * * * * * * * * * * . .
+     * 2 * * * * * * * * * * . .
+     * 3 * * * * * * * * * * . .
+     * 4 * * * * * * * * * * . .
+     * 5 * * * * * * * * * * . .
+     * 6 * * * * * * * * * * * *
+     * 7 * * * * * * * * * * * *
+     * 8 . . * * * * * * * * * *
+     * 9 . . * * * * * * * * * *
+     */
+    strided_mask_t* mask = strided_mask_create_from_list(5, 6,  1, 1, 1, 2, 2,  2, 3, 3, 3, 4);
+    strided_mask_printf(mask);
+    strided_mask_t* expanded = strided_mask_expand(mask, 2);
+    strided_mask_printf(expanded);
+    strided_mask_destroy(mask);
+    strided_mask_destroy(expanded);
+}
 
 int main() {
     const struct CMUnitTest tests[] = {
             cmocka_unit_test(create_test),
             cmocka_unit_test(index_pairs_test),
+            cmocka_unit_test(expand_radius_zero_test),
+            cmocka_unit_test(expand_radius_one_test),
+            cmocka_unit_test(expand_radius_two_test),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);
