@@ -34,11 +34,10 @@ void strided_mask_destroy(const strided_mask_t* mask) {
 }
 
 void strided_mask_printf(const strided_mask_t* mask) {
-    size_t n_rows = mask->n_rows;
-    size_t n_cols = mask->n_cols;
-    size_t* start_cols = mask->start_cols;
-    size_t* end_cols = mask->end_cols;
-
+    const size_t n_rows = mask->n_rows;
+    const size_t n_cols = mask->n_cols;
+    const size_t* start_cols = mask->start_cols;
+    const size_t* end_cols = mask->end_cols;
 
     // Header
     printf("  ");
@@ -47,8 +46,7 @@ void strided_mask_printf(const strided_mask_t* mask) {
     }
     printf("\n");
 
-    size_t start;
-    size_t end;
+    size_t start, end;
     for (size_t row = 0; row < n_rows; row++) {
         printf("%zu ", row % 10);
         start = start_cols[row];
@@ -61,18 +59,15 @@ void strided_mask_printf(const strided_mask_t* mask) {
 }
 
 size_t* strided_mask_to_index_pairs(const strided_mask_t* mask, size_t* path_length) {
-    size_t n_rows = mask->n_rows;
-    size_t n_cols = mask->n_cols;
-    size_t* start_cols = mask->start_cols;
-    size_t* end_cols = mask->end_cols;
-
+    const size_t n_rows = mask->n_rows;
+    const size_t n_cols = mask->n_cols;
+    const size_t* start_cols = mask->start_cols;
+    const size_t* end_cols = mask->end_cols;
 
     // Maximum size is n_rows + n_cols - 1 (follow the border, but don't double count corner)
-
     size_t* path = calloc(2 * (n_rows + n_cols - 1), sizeof(size_t));
     size_t index = 0;
-    size_t start;
-    size_t end;
+    size_t start, end;
     for (size_t row = 0; row < n_rows; row++) {
         start = start_cols[row];
         end = end_cols[row];
@@ -85,18 +80,18 @@ size_t* strided_mask_to_index_pairs(const strided_mask_t* mask, size_t* path_len
     return path;
 }
 
-strided_mask_t* strided_mask_expand(strided_mask_t* mask, const size_t radius) {
-    size_t n_rows_initial = mask->n_rows;
-    size_t n_cols_initial = mask->n_cols;
-    size_t* start_cols_initial = mask->start_cols;
-    size_t* end_cols_initial = mask->end_cols;
+strided_mask_t* strided_mask_expand(const strided_mask_t* mask, const size_t radius) {
+    const size_t n_rows_initial = mask->n_rows;
+    const size_t n_cols_initial = mask->n_cols;
+    const size_t* start_cols_initial = mask->start_cols;
+    const size_t* end_cols_initial = mask->end_cols;
 
-    size_t n_rows_final = 2 * n_rows_initial;
-    size_t n_cols_final = 2 * n_cols_initial;
+    const size_t n_rows_final = 2 * n_rows_initial;
+    const size_t n_cols_final = 2 * n_cols_initial;
     size_t* start_cols_final = malloc(n_rows_final * sizeof(size_t));
     size_t* end_cols_final = malloc(n_rows_final * sizeof(size_t));
 
-    for (int row = 0; row < n_rows_final; row++) { // NOTE: this is an int on purpose, we want to be able to subtract values and see negative numbers.
+    for (int row = 0; row < (int) n_rows_final; row++) { // NOTE: this is an int on purpose, we want to be able to subtract values and see negative numbers.
         start_cols_final[row] = (size_t) MAX((int) (2 * start_cols_initial[MAX(row - (int) radius,                  0) / 2]    ) - (int) radius,                  0);
         end_cols_final[row]   = (size_t) MIN((int) (2 *   end_cols_initial[MIN(row + (int) radius, (int) n_rows_final) / 2] + 1) + (int) radius, (int) n_rows_final);
     }

@@ -1,4 +1,5 @@
 #include <cstreamgeo/cstreamgeo.h>
+#include <cstreamgeo/stridedmask.h>
 
 #define PI 3.1415926535f
 
@@ -6,111 +7,135 @@
  * Routines for computing {fast/full} dynamic time warp distance between streams.
  */
 
-typedef struct {
-    const float* a_data;
-    const float* b_data;
-    size_t n_cols;
-    size_t dp_table_width;
-    float* dp_table;
-} _eval_dp_cell_arg;
+typedef struct warp_info_s {
+    float warp_cost;
+    strided_mask_t* path_mask;
+} warp_info_t;
 
-bool _eval_dp_cell(uint32_t index, void* arg) {
-    // Unpack arg tuple
-    _eval_dp_cell_arg* tmp = (_eval_dp_cell_arg*) arg;
-    const float* a_data = tmp->a_data;
-    const float* b_data = tmp->b_data;
-    const size_t n_cols = tmp->n_cols;
-    const size_t dp_table_width = tmp->dp_table_width;
-    float* dp_table = tmp->dp_table;
 
-    size_t i = index / n_cols;
-    size_t j = index % n_cols;
-    float lat_diff = b_data[2 * j + 0] - a_data[2 * i + 0];
-    float lng_diff = b_data[2 * j + 1] - a_data[2 * i + 1];
-    float dt = (lng_diff * lng_diff) + (lat_diff * lat_diff);
-    size_t m = (i + 1) * dp_table_width + (j + 1);
-    float diag_cost = dp_table[m - dp_table_width - 1];
-    float up_cost = dp_table[m - dp_table_width];
-    float left_cost = dp_table[m - 1];
-    if (diag_cost <= up_cost && diag_cost <= left_cost) {
-        dp_table[m] = diag_cost + dt;
-    } else if (up_cost <= left_cost) {
-        dp_table[m] = up_cost + dt;
-    } else {
-        dp_table[m] = left_cost + dt;
-    }
-    return true;
-}
 
 /**
  * A top-level method that computes an alignment mask and DTW distance between two streams.
- * If passed a window mask in parameter `window`, this method only evalutes the DTW alignment on the cells in the window.
- * If passed a null window mask, this method evalutes the DTW alignment for all cells (quadratic behavior).
  * @param a_n Number of points in stream buffer `a`
  * @param a Stream buffer data for first stream
  * @param b_n Number of points in stream buffer `b`
  * @param b Stream buffer data for second stream
- * @param window Parameter (can be null) containing a window mask to evaluate DTW on.
+ * @param window Parameter containing a window mask to evaluate DTW on. Can be a "full" mask, or NULL
  * @param p Output parameter containing warp path for optimal alignment.
  * @return Cost of alignment between stream `a` and stream `b`
  */
-float _dtw(const stream_t* a, const stream_t* b, const roaring_mask_t* window, roaring_mask_t* p) {
+warp_info_t* _dtw(const stream_t* a, const stream_t* b, const strided_mask_t* window) {
     const size_t a_n = a->n;
     const float* a_data = a->data;
     const size_t b_n = b->n;
     const float* b_data = b->data;
-    // Table is one index larger than stream on each side to provide easy padding logic.
+
     const size_t dp_table_height = a_n + 1;
     const size_t dp_table_width = b_n + 1;
     const size_t dp_size = dp_table_height * dp_table_width;
 
-    // Set up and value-initialize the DP table to FLT_MAX.
     float* dp_table = malloc(dp_table_height * dp_table_width * sizeof(float));
-    for (size_t n = 0; n < dp_size; ++n) {
-        dp_table[n] = FLT_MAX;
+    for (size_t col = 0; col < dp_table_width; col++) {
+        dp_table[col] = FLT_MAX;
+    }
+    for (size_t row = 0; row < dp_table_height; row++) {
+        dp_table[row*dp_table_width] = FLT_MAX;
     }
     dp_table[0] = 0.0;
 
+    warp_info_t* warp_info = malloc(sizeof(warp_info_t));
+
+    size_t m;
+    float diag_cost, up_cost, left_cost;
+    float lat_diff, lng_diff, dt;
+
     if (window == NULL) {
-        // Full DTW if window parameter is passed in as null.
-        // A bit of code repetition with _eval_dp_cell(), but this is a significant performance optimization -
-        // not worth creating a "full window" and using roaring_iterate over that window due to overhead.
-        size_t m;
-        float diag_cost, up_cost, left_cost;
-        float lat_diff, lng_diff, dt;
+        // FULL DTW
         for (size_t i = 0; i < a_n; i++) {
-            for (size_t j = 0; j < b_n; j++) {
-                lat_diff = b_data[2 * j + 0] - a_data[2 * i + 0];
-                lng_diff = b_data[2 * j + 1] - a_data[2 * i + 1];
+            for (size_t j = 0; j <= b_n; j++) {
+                m = (i+1)*dp_table_width + (j+1); // Unravelled index into the DP table that we're going to set.
+                lat_diff = b_data[2*j + 0] - a_data[2*i + 0];
+                lng_diff = b_data[2*j + 1] - a_data[2*i + 1];
                 dt = (lng_diff * lng_diff) + (lat_diff * lat_diff);
-                m = (i + 1) * dp_table_width + (j + 1);
                 diag_cost = dp_table[m - dp_table_width - 1];
-                up_cost = dp_table[m - dp_table_width];
-                left_cost = dp_table[m - 1];
-                if (diag_cost <= up_cost && diag_cost <= left_cost) {
-                    dp_table[m] = diag_cost + dt;
-                } else if (up_cost <= left_cost) {
-                    dp_table[m] = up_cost + dt;
-                } else {
-                    dp_table[m] = left_cost + dt;
-                }
+                up_cost   = dp_table[m - dp_table_width];
+                left_cost = dp_table[m - 1 ];
+
+                if (diag_cost <= up_cost && diag_cost <= left_cost) dp_table[m] = diag_cost + dt;
+                else if (up_cost <= left_cost)                      dp_table[m] = up_cost + dt;
+                else                                                dp_table[m] = left_cost + dt;
             }
         }
+
     } else {
-        // DTW evaluation only on window cells otherwise
-        _eval_dp_cell_arg* edca = malloc(sizeof(_eval_dp_cell_arg));
-        edca->a_data = a_data;
-        edca->b_data = b_data;
-        edca->n_cols = window->n_cols;
-        edca->dp_table_width = dp_table_width;
-        edca->dp_table = dp_table;
-        // This method takes a function pointer (in this case, _eval_dp_cell) with signature (index, arg)
-        // and an argument to pass into that fn (in this case, edca), then
-        // applies the function _eval_dp_cell to every single cell contained in our window.
-        // This is the canonical way of iterating over a roaring_bitmask container.
-        roaring_iterate(window->indices, _eval_dp_cell, edca);
-        free(edca);
+        // WINDOWED DTW
+        const size_t* start_cols = window->start_cols;
+        const size_t* end_cols = window->end_cols;
+        size_t start, end, prev_start, prev_end;
+
+        for (size_t i = 0; i < a_n; i++) {
+            start = start_cols[i];
+            end = end_cols[i];
+            if (i > 0)  {
+                prev_start = start_cols[i-1];
+                prev_end = end_cols[i-1];
+            }
+            for (size_t j = start; j <= end; j++) {
+                size_t row = i+1;
+                size_t col = j+1;
+                m = row*dp_table_width + col; // Unravelled index into the DP table that we're going to set.
+                lat_diff = b_data[2*j + 0] - a_data[2*i + 0];
+                lng_diff = b_data[2*j + 1] - a_data[2*i + 1];
+                dt = (lng_diff * lng_diff) + (lat_diff * lat_diff);
+
+                // Conditions on front are when we can actually just go look at the DP table.
+                // For instance, when row == 1 in the DP table, you know that the row above you is the boundary so, so it's definitely safe to do a dp_table lookup.
+                // When row and col are greater than 1
+                // TODO: Might be optimizable further - could trade off more branching for one less memory access - consider that we already know the exact value when row == 1 or col == 1 in these cases.
+                // i think we need to add one to col maybe in the bounds check
+                diag_cost = ( row == 1 || col == 1 || (prev_start <= col-1 && col-1 <= prev_end)) ? dp_table[m - dp_table_width - 1] : FLT_MAX;
+                up_cost   = ( row == 1             || (prev_start <= col   && col   <= prev_end)) ? dp_table[m - dp_table_width    ] : FLT_MAX;
+                left_cost = (             col == 1 || (     start <= col-1 && col-1 <=      end)) ? dp_table[m                  - 1] : FLT_MAX;
+
+                if (diag_cost <= up_cost && diag_cost <= left_cost) dp_table[m] = diag_cost + dt;
+                else if (up_cost <= left_cost)                      dp_table[m] = up_cost + dt;
+                else                                                dp_table[m] = left_cost + dt;
+
+            }
+        }
     }
+
+
+
+    /*     1 2 3 4 5 6
+     *   0 I I I I I I
+     * 1 I * * * . . .
+     * 1 I . * * . . .
+     * 2 I . . * * . .
+     * 3 I . . * * * .
+     * 5 I . . . * * *
+     */
+
+    /*     1 2 3 4 5 6
+     *   0 I I I I I I
+     * 1 I 0 * * . . .
+     * 1 I . * * . . .
+     * 2 I . . * * . .
+     * 3 I . . * * * .
+     * 5 I . . . * * *
+     */
+
+    /*     1 2 3 4 5 6
+     *   0 I I I I I I
+     * 1 I 0 1 3 . . .
+     * 1 I . 1 3 . . .
+     * 2 I . . 2 4 . .
+     * 3 I . . 2 3 5 .
+     * 5 I . . . 4 3 4
+     */
+
+
+
 
     // Finally, trace back through the path defined by the DP table.
     // I tested storing this path during DP table creation, but it turned out to be faster in every benchmark to
@@ -137,122 +162,6 @@ float _dtw(const stream_t* a, const stream_t* b, const roaring_mask_t* window, r
     return end_cost;
 }
 
-
-
-
-
-
-
-// Methods needed for fast_dtw below.
-
-
-typedef struct {
-    size_t radius;
-    size_t shrunk_cols;
-    roaring_mask_t* window_out;
-} _expand_cell_arg;
-
-/**
- * Mutates the window_out member in the `arg` parameter by "scaling up" a set bit, then extruding it by a radius
- * Example:
- * If radius = 0,
- * . . . . . . .
- * . . . . . . .
- * . . . . . @ .
- * . . . . . . .
- * gets scaled up to
- * . . . . . . . . . . . . . .
- * . . . . . . . . . . . . . .
- * . . . . . . . . . . . . . .
- * . . . . . . . . . . . . . .
- * . . . . . . . . . . @ @ . .
- * . . . . . . . . . . @ @ . .
- * . . . . . . . . . . . . . .
- * . . . . . . . . . . . . . .
- * If radius = 1,
- * . . . . . . . . . . . . . .
- * . . . . . . . . . . . . . .
- * . . . . . . . . . . . . . .
- * . . . . . . . . . @ @ @ @ .
- * . . . . . . . . . @ @ @ @ .
- * . . . . . . . . . @ @ @ @ .
- * . . . . . . . . . @ @ @ @ .
- * . . . . . . . . . . . . . .
- * @param value Ravelled index to scale up and extrude
- * @param arg Metadata on extrusion (radius, target size, and output window mask)
- */
-bool _expand_cell(uint32_t value, void* arg) {
-    // Unpack arg tuple
-    _expand_cell_arg* tmp = (_expand_cell_arg*) arg;
-    const int radius = (int) (tmp->radius);
-    const int shrunk_cols = (int) (tmp->shrunk_cols);
-    const roaring_mask_t* window_out = tmp->window_out;
-
-    // The maximum number we'd see is 2 * 2 * (2r + 1) * (2r + 1) = 16r^2 + 16r + 4
-    uint32_t* included_indices = malloc(sizeof(uint32_t) * 2 * 2 * (2 * radius + 1) * (2 * radius + 1));
-    size_t inserted_indices = 0;
-
-    int p = 2 * (value / shrunk_cols);
-    int q = 2 * (value % shrunk_cols);
-    for (int i = 0; i <= 1; i++) {
-        for (int j = 0; j <= 1; j++) {
-            for (int x = -radius; x <= radius; x++) {
-                for (int y = -radius; y <= radius; y++) {
-                    int first = (p + x + i);
-                    int second = (q + y + j);
-                    if (0 <= first && first < (int) (window_out->n_rows) && 0 <= second && second < (int) (window_out->n_cols)) {
-                        included_indices[inserted_indices++] = (uint32_t) (first * window_out->n_cols + second);
-                    }
-                }
-            }
-        }
-    }
-    roaring_bitmap_add_many(window_out->indices, inserted_indices, included_indices);
-    free(included_indices);
-    return true;
-}
-
-/**
- * Scales up a path mask by a constant radius r. Used by the expansion phase of the fast_dtw algorithm
- * Example:
- * If radius = 0,
- * @ @ . . . . .
- * . . @ @ . . .
- * . . . . @ @ .
- * . . . . . . @
- * gets scaled up to
- * @ @ @ @ . . . . . . . . . .
- * @ @ @ @ . . . . . . . . . .
- * . . . . @ @ @ @ . . . . . .
- * . . . . @ @ @ @ . . . . . .
- * . . . . . . . . @ @ @ @ . .
- * . . . . . . . . @ @ @ @ . .
- * . . . . . . . . . . . . @ @
- * . . . . . . . . . . . . @ @
- * If radius = 1,
- * @ @ @ @ @ . . . . . . . . .
- * @ @ @ @ @ @ @ @ @ . . . . .
- * @ @ @ @ @ @ @ @ @ . . . . .
- * . . . @ @ @ @ @ @ @ @ @ @ .
- * . . . @ @ @ @ @ @ @ @ @ @ .
- * . . . . . . . @ @ @ @ @ @ @
- * . . . . . . . @ @ @ @ @ @ @
- * . . . . . . . . . . . @ @ @
- * @param shrunk_path Input path to scale up and extrude
- * @param radius Parameter controlling extrusion amount
- * @param window_out Output parameter for new path
- */
-void _expand_window(const roaring_mask_t* shrunk_path, const size_t radius, roaring_mask_t* window_out) {
-    _expand_cell_arg* eca = malloc(sizeof(_expand_cell_arg));
-    eca->radius = radius;
-    eca->shrunk_cols = shrunk_path->n_cols;
-    eca->window_out = window_out;
-    roaring_iterate(shrunk_path->indices, _expand_cell, eca);
-    free(eca);
-    // This is a small perf optimization; our bitmaps are generally "banded" and have lots of "runs" as such.
-    // This line does run-length encoding on the bitmap where applicable.
-    roaring_bitmap_run_optimize(window_out->indices);
-}
 
 /**
  * Downsamples a stream by a factor of two, averaging consecutive points.
@@ -304,7 +213,7 @@ stream_t* _reduce_by_half(const stream_t* input) {
  * @param path Output parameter containing optimal alignment path
  * @return Alignment cost of optimal alignment path
  */
-float _fast_dtw(const stream_t* a, const stream_t* b, const size_t radius, roaring_mask_t* path) {
+warp_info_t* _fast_dtw(const stream_t* a, const stream_t* b, const size_t radius) {
     const size_t a_n = a->n;
     const size_t b_n = b->n;
     const size_t min_size = radius + 2;
