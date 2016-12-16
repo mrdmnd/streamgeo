@@ -124,7 +124,8 @@ void strided_mask_printf(const strided_mask_t* mask);
 
 
 /**
- * A path_mask is a special kind of strided mask where the rows overlap by no more than one star
+ * A path_mask is a special kind of strided mask where the rows overlap by no more than one star,
+ * and the upper left and lower right corner are filled.
  *
  * VALID
  *   0 1 2 3 4 5
@@ -142,12 +143,28 @@ void strided_mask_printf(const strided_mask_t* mask);
  * 3 . * * * . .
  * 4 . . * * * * <-- overlaps two positions
  *
- * This function converts a valid path mask to a sequence of index pairs
+ * INVALID
+ *   0 1 2 3 4 5
+ * 0 . * . . . . <-- does not fill upper left corner
+ * 1 . * . . . .
+ * 2 . * . . . .
+ * 3 . * * * . .
+ * 4 . . * * * *
+ *
+ * This function converts a (presumed) valid path mask to a sequence of index pairs
  * Also sets the value of path length to the number of points in the path.
  * Caller is responsible for cleaning up the memory returned.
  */
 size_t* strided_mask_to_index_pairs(const strided_mask_t* mask, size_t* path_length);
 
+/**
+ * Build a strided mask object (a path mask) from a path.
+ * Assumption is that path goes from upper left to lower right corner.
+ * @param index_pairs
+ * @param path_length
+ * @return
+ */
+strided_mask_t* strided_mask_from_index_pairs(const size_t* index_pairs, const size_t path_length);
 
 /**
  *

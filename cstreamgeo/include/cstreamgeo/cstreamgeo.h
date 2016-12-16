@@ -13,9 +13,15 @@
  * You cannot "add points" to a stream; you must create a new stream with the points added.
  */
 typedef struct stream_s {
-    size_t n; // Number of *POINTS* in the stream. The number of floats in the data member is 2x this value.
-    float* data;
+    size_t n;    // Number of *POINTS* in the stream. The number of floats in the data member is 2x this value.
+    float* data; // Stream buffer [lat0, lng0, lat1, lng1, ..., latN, lngN]
 } stream_t;
+
+typedef struct warp_summary_s {
+    float cost;          // Result of aligning two streams.
+    size_t path_length;  // Number of *POINTS* in the warp path. The number of elts in `index_pairs` is 2x this value.
+    size_t* index_pairs; // Indices: [row_0, col_0, row_1, col_1, ..., row_N, col_N]
+} warp_summary_t;
 
 
 /* -------------- Utility Functions --------------- */
@@ -86,23 +92,24 @@ float* stream_sparsity(const stream_t* stream);
  * Sets the output parameter `cost` equal to the alignment cost.
  * Allocates memory; caller is responsible for cleanup.
  */
-size_t* full_align(const stream_t* a, const stream_t* b, float* cost, size_t* path_length); // TODO
+warp_summary_t* full_align(const stream_t* a, const stream_t* b);
 
 /**
  * Returns the (approximately) optimal alignment of stream a to stream b.
  * Uses a fast dynamic timewarping algorithm by S. Salvador.
  * Larger radius values are increasingly more precise, but slower.
+ * radius=0 and radius=1 are quite inaccurate;
+ * radius=8 is O(3%) error on random (correlated) streams of size 1000 or so.
  * Allocates memory; caller is responsible for cleanup.
  */
-size_t*
-fast_align(const stream_t* a, const stream_t* b, const size_t radius, float* cost, size_t* path_length);  // TODO
+warp_summary_t* fast_align(const stream_t* a, const stream_t* b, const size_t radius);
 
 /**
  * Establishes a "common-sense" distance metric on two streams.
  * Larger values for radius lead to slower code, but more accurate DTW alignment.
  * Short circuits on common cases.
  */
-float redmond_similarity(const stream_t* a, const stream_t* b, const size_t radius); // TODO
+float redmond_similarity(const stream_t* a, const stream_t* b, const size_t radius);
 
 
 /* -------------- Up/downsampling routines ----------------- */

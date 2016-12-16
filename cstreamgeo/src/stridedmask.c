@@ -80,6 +80,36 @@ size_t* strided_mask_to_index_pairs(const strided_mask_t* mask, size_t* path_len
     return path;
 }
 
+strided_mask_t* strided_mask_from_index_pairs(const size_t* index_pairs, const size_t path_length) {
+    // [0, 0, 1, 0, 1, 1, 2, 1, 3, 1, 3, 2, 3, 3, 4, 4, 4, 5]
+    //  0  1  2  3  4  5  6  7  8  9  0  1  2  3  4  5  6  7
+    // path_length = 9
+    const size_t n_rows = index_pairs[2*(path_length-1)] + 1;
+    const size_t n_cols = index_pairs[2*(path_length-1)+1] + 1;
+    strided_mask_t* mask = strided_mask_create(n_rows, n_cols);
+    size_t* start_cols = mask->start_cols;
+    size_t* end_cols = mask->end_cols;
+
+    int old_row = -1;
+    int old_col = -1;
+    int new_row;
+    int new_col;
+    // Boundary initializers
+    start_cols[0] = 0;
+    end_cols[n_rows] = n_cols;
+    for (size_t index = 0; index < path_length; index++) {
+        new_row = (int) index_pairs[2 * index];
+        new_col = (int) index_pairs[2 * index + 1];
+        if (new_row > old_row) {
+            start_cols[new_row] = (size_t) new_col;
+            end_cols[old_row] = (size_t) old_col;
+        }
+        old_row = new_row;
+        old_col = new_col;
+    }
+    return mask;
+}
+
 strided_mask_t* strided_mask_expand(const strided_mask_t* mask, const size_t radius) {
     const size_t n_rows_initial = mask->n_rows;
     const size_t n_cols_initial = mask->n_cols;

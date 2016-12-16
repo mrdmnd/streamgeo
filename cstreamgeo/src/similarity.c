@@ -7,12 +7,19 @@
  * Routines for computing {fast/full} dynamic time warp distance between streams.
  */
 
-typedef struct warp_info_s {
+typedef struct {
     float warp_cost;
     strided_mask_t* path_mask;
 } warp_info_t;
 
-
+void warp_info_destroy(const warp_info_t* warp) {
+    strided_mask_destroy(warp->path_mask);
+    free((void *) warp);
+}
+void warp_summary_destroy(const warp_summary_t* warp) {
+    free(warp->index_pairs);
+    free((void *) warp);
+}
 
 /**
  * A top-level method that computes an alignment mask and DTW distance between two streams.
@@ -32,15 +39,11 @@ warp_info_t* _dtw(const stream_t* a, const stream_t* b, const strided_mask_t* wi
 
     const size_t dp_table_height = a_n + 1;
     const size_t dp_table_width = b_n + 1;
-    const size_t dp_size = dp_table_height * dp_table_width;
 
+    // This is actually very expensive, and we want to be careful not to set the values in the DP table when we don't need to set them.
     float* dp_table = malloc(dp_table_height * dp_table_width * sizeof(float));
-    for (size_t col = 0; col < dp_table_width; col++) {
-        dp_table[col] = FLT_MAX;
-    }
-    for (size_t row = 0; row < dp_table_height; row++) {
-        dp_table[row*dp_table_width] = FLT_MAX;
-    }
+    for (size_t col = 0; col < dp_table_width; col++) dp_table[col] = FLT_MAX;
+    for (size_t row = 0; row < dp_table_height; row++) dp_table[row*dp_table_width] = FLT_MAX;
     dp_table[0] = 0.0;
 
     warp_info_t* warp_info = malloc(sizeof(warp_info_t));
@@ -66,7 +69,34 @@ warp_info_t* _dtw(const stream_t* a, const stream_t* b, const strided_mask_t* wi
                 else                                                dp_table[m] = left_cost + dt;
             }
         }
-
+        // Trace through full window to recover path.
+        size_t* reversed_index_pairs = malloc(2 * (a_n + b_n - 1) * sizeof(size_t)); // biggest possible path
+        size_t u = a_n; // last index in DP table
+        size_t v = b_n; // last index in DP table
+        size_t path_len = 0;
+        while (u > 0 && v > 0) {
+            reversed_index_pairs[2*path_len + 1] = u; // not a typo, storing in reverse order for fast reversal
+            reversed_index_pairs[2*path_len] = v;
+            float diag_cost = dp_table[(u - 1) * dp_table_width + (v - 1)];
+            float up_cost   = dp_table[(u - 1) * dp_table_width + (v    )];
+            float left_cost = dp_table[(u    ) * dp_table_width + (v - 1)];
+            if (diag_cost <= up_cost && diag_cost <= left_cost) {
+                u -= 1;
+                v -= 1;
+            } else if (up_cost <= left_cost) {
+                u -= 1;
+            } else {
+                v -= 1;
+            }
+            path_len += 1;
+        }
+        size_t* index_pairs = malloc(2 * path_len * sizeof(size_t));
+        for (size_t i = 0; i < 2*path_len; i++) {
+            index_pairs[i] = reversed_index_pairs[2*path_len - 1 - i ];
+        }
+        free(reversed_index_pairs);
+        warp_info->path_mask = strided_mask_from_index_pairs(index_pairs, path_len);
+        warp_info->warp_cost=dp_table[dp_table_height * dp_table_width - 1];
     } else {
         // WINDOWED DTW
         const size_t* start_cols = window->start_cols;
@@ -103,63 +133,21 @@ warp_info_t* _dtw(const stream_t* a, const stream_t* b, const strided_mask_t* wi
 
             }
         }
+        // Trace through partial window to recover path
+        warp_info->path_mask = NULL;
+        warp_info->warp_cost=dp_table[dp_table_height * dp_table_width - 1];
+
     }
-
-
-
-    /*     1 2 3 4 5 6
-     *   0 I I I I I I
-     * 1 I * * * . . .
-     * 1 I . * * . . .
-     * 2 I . . * * . .
-     * 3 I . . * * * .
-     * 5 I . . . * * *
-     */
-
-    /*     1 2 3 4 5 6
-     *   0 I I I I I I
-     * 1 I 0 * * . . .
-     * 1 I . * * . . .
-     * 2 I . . * * . .
-     * 3 I . . * * * .
-     * 5 I . . . * * *
-     */
-
-    /*     1 2 3 4 5 6
-     *   0 I I I I I I
-     * 1 I 0 1 3 . . .
-     * 1 I . 1 3 . . .
-     * 2 I . . 2 4 . .
-     * 3 I . . 2 3 5 .
-     * 5 I . . . 4 3 4
-     */
-
-
-
 
     // Finally, trace back through the path defined by the DP table.
     // I tested storing this path during DP table creation, but it turned out to be faster in every benchmark to
     // recreate the path ex-post-facto rather than touching extra memory.
-    size_t u = a_n;
-    size_t v = b_n;
-    while (u > 0 && v > 0) {
-        size_t idx = (u - 1) * b_n + (v - 1);
-        roaring_bitmap_add(p->indices, (uint32_t) idx);
-        float diag_cost = dp_table[(u - 1) * dp_table_width + (v - 1)];
-        float up_cost = dp_table[(u - 1) * dp_table_width + (v)];
-        float left_cost = dp_table[(u) * dp_table_width + (v - 1)];
-        if (diag_cost <= up_cost && diag_cost <= left_cost) {
-            u -= 1;
-            v -= 1;
-        } else if (up_cost <= left_cost) {
-            u -= 1;
-        } else {
-            v -= 1;
-        }
-    }
-    float end_cost = dp_table[dp_table_height * dp_table_width - 1];
+    //            diag_cost = ( row == 1 || col == 1 || (prev_start <= col-1 && col-1 <= prev_end)) ? dp_table[m - dp_table_width - 1] : FLT_MAX;
+    //            up_cost   = ( row == 1             || (prev_start <= col   && col   <= prev_end)) ? dp_table[m - dp_table_width    ] : FLT_MAX;
+    //            left_cost = (             col == 1 || (     start <= col-1 && col-1 <=      end)) ? dp_table[m                  - 1] : FLT_MAX;
     free(dp_table);
-    return end_cost;
+
+    return warp_info;
 }
 
 
@@ -199,7 +187,7 @@ stream_t* _reduce_by_half(const stream_t* input) {
  * approximate algorithm fast_dtw. At a high level, this algorithm works by recursively
  *   - Base case: small stream size; compute explicit DTW
  *   - Recursive case:
- *     a) Downsamplie each stream by a factor of two
+ *     a) Downsample each stream by a factor of two
  *     b) Call fast_dtw recursively on the downsampled streams to get a shrunk alignment path
  *     c) Expand the shrunk alignment path by some radius into a new search window
  *        (this reprojects the alignment path back into the resolution of the original streams)
@@ -216,54 +204,43 @@ stream_t* _reduce_by_half(const stream_t* input) {
 warp_info_t* _fast_dtw(const stream_t* a, const stream_t* b, const size_t radius) {
     const size_t a_n = a->n;
     const size_t b_n = b->n;
-    const size_t min_size = radius + 2;
+    warp_info_t* final_warp_info;
 
-    if (a_n <= min_size || b_n <= min_size) {
-        // Sets path output variable through side-effects.
-        return _dtw(a, b, NULL, path);
+    if (a_n <= radius + 2 || b_n <= radius + 2) {
+        final_warp_info = _dtw(a, b, NULL);
     } else {
-        stream_t* shrunk_a = _reduce_by_half(a);
-        stream_t* shrunk_b = _reduce_by_half(b);
-
-        // Worse case path is all the way down, then all the way right (minus one because this double-counts corner).
-        roaring_mask_t* shrunk_path = roaring_mask_create(a_n / 2, b_n / 2, a_n / 2 + b_n / 2 - 1);
-
-        // Calculate a shrunk path to feed into the expand_window fn
-        _fast_dtw(shrunk_a, shrunk_b, radius, shrunk_path);
+        const stream_t* shrunk_a = _reduce_by_half(a); // Allocates memory
+        const stream_t* shrunk_b = _reduce_by_half(b); // Allocates memory
+        const warp_info_t* shrunk_warp_info = _fast_dtw(shrunk_a, shrunk_b, radius); // Allocates memory
         stream_destroy(shrunk_a);
         stream_destroy(shrunk_b);
-
-        // It takes some cleverness to figure out the maximum number of cells that we'll see
-        // The worst case is when a_n = b_n, and the shrunk_path passes exactly on the diagonal
-        // see page six of http://cs.fit.edu/~pkc/papers/tdm04.pdf for more
-        roaring_mask_t* new_window = roaring_mask_create(a_n, b_n, (4 * radius + 3) * MAX(a_n, b_n));
-        _expand_window(shrunk_path, radius, new_window);
-        roaring_mask_destroy(shrunk_path);
-        float result = _dtw(a, b, new_window, path);
-        roaring_mask_destroy(new_window);
-        return result;
+        strided_mask_t* new_window = strided_mask_expand(shrunk_warp_info->path_mask, radius); // Allocates memory
+        warp_info_destroy(shrunk_warp_info);
+        final_warp_info = _dtw(a, b, new_window); // Allocates memory
+        strided_mask_destroy(new_window);
     }
+    return final_warp_info;
 }
-
 
 
 
 
 /* ---------- TOP LEVEL FUNCTIONS, EXPOSED TO API ----------- */
 
+
+
 /**
  * A top level function to compute the optimal warp-path alignment sequence between streams a and b.
  * @param a First stream
  * @param b Second stream
- * @param cost Cost of optimal alignment (output param)
- * @param path_length Number of cells in the warp path (output param)
- * @return Array of the form (i0, j0, i1, j1, i2, j2, ...) with 2*path_length entries.
+ * @return A warp_summary structure containing the cost, as well as the warp path.
  */
-size_t* full_align(const stream_t* a, const stream_t* b, float* cost, size_t* path_length) {
-    roaring_mask_t* mask = roaring_mask_create(a->n, b->n, a->n + b->n - 1);
-    *cost = _dtw(a, b, NULL, mask);
-    size_t* warp_path = roaring_mask_to_index_pairs(mask, path_length);
-    return warp_path;
+warp_summary_t* full_align(const stream_t* a, const stream_t* b) {
+    warp_summary_t* final_warp = malloc(sizeof(warp_summary_t));
+    warp_info_t* warp_info = _dtw(a, b, NULL);
+    final_warp->cost = warp_info->warp_cost;
+    final_warp->index_pairs = strided_mask_to_index_pairs(warp_info->path_mask, &(final_warp->path_length));
+    return final_warp;
 }
 
 /**
@@ -271,15 +248,13 @@ size_t* full_align(const stream_t* a, const stream_t* b, float* cost, size_t* pa
  * @param a First stream
  * @param b Second stream
  * @param radius Parameter controlling level of approximation. Larger values are slower but more comprehensive.
- * @param cost Cost of optimal alignment (output param)
- * @param path_length Number of cells in the warp path (output param)
- * @return Array of the form (i0, j0, i1, j1, i2, j2, ...) with 2*path_length entries.
+ * @return A warp_summary structure containing the (approximate) cost, as well as the best approximation to the warp path.
  */
-size_t* fast_align(const stream_t* a, const stream_t* b, const size_t radius, float* cost, size_t* path_length) {
-    roaring_mask_t* mask = roaring_mask_create(a->n, b->n, a->n + b->n - 1);
-    *cost = _fast_dtw(a, b, radius, mask);
-    size_t* warp_path = roaring_mask_to_index_pairs(mask, path_length);
-    return warp_path;
+warp_summary_t* fast_align(const stream_t* a, const stream_t* b, const size_t radius) {
+    warp_summary_t* final_warp = malloc(sizeof(warp_summary_t));
+    warp_info_t* warp_info = _fast_dtw(a, b, radius);
+    final_warp->cost = warp_info->warp_cost;
+    final_warp->index_pairs = strided_mask_to_index_pairs(warp_info->path_mask, &(final_warp->path_length));
 }
 
 /**
@@ -331,19 +306,16 @@ float redmond_similarity(const stream_t* a, const stream_t* b, const size_t radi
     float* a_sparsity = stream_sparsity(a);
     float* b_sparsity = stream_sparsity(b);
 
-    float* cost = malloc(sizeof(float));
-    *cost = 0.0f;
-    size_t* path_length = malloc(sizeof(size_t));
-    *path_length = 0;
-
-    size_t* warp_path = fast_align(a, b, radius, cost, path_length);
+    warp_summary_t* warp_summary = fast_align(a, b, radius);
+    size_t path_length = warp_summary->path_length;
+    size_t* warp_path = warp_summary->index_pairs;
 
     float total_weight = 0.0f;
     float total_weight_error = 0.0f;
     float unitless_cost, weight, error;
     size_t i, j;
 
-    for (size_t n = 0; n < *path_length; n++) {
+    for (size_t n = 0; n < path_length; n++) {
         i = warp_path[2 * n];
         j = warp_path[2 * n + 1];
 
@@ -354,15 +326,12 @@ float redmond_similarity(const stream_t* a, const stream_t* b, const size_t radi
 
         // Weight start/end less than the middle, weight sparse points less than dense.
         // This is a product of positional_weight_a * positional_weight_b * sparsity_weight_a * sparsity_weight_b
-        weight = (float) (a_sparsity[i] * b_sparsity[j] * (0.1 + 0.9 * sin(PI * i / a_n)) *
-                          (0.1 + 0.9 * sin(PI * j / b_n)));
+        weight = (float) (a_sparsity[i] * b_sparsity[j] * (0.1 + 0.9 * sin(PI * i / a_n)) * (0.1 + 0.9 * sin(PI * j / b_n)));
         total_weight += weight;
         total_weight_error += (error * weight);
     }
 
-    free(cost);
-    free(path_length);
-    free(warp_path);
+    warp_summary_destroy(warp_summary);
     free(a_sparsity);
     free(b_sparsity);
 

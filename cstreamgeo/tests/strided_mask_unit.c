@@ -36,7 +36,7 @@ void create_test() {
     strided_mask_destroy(mask3);
 }
 
-void index_pairs_test() {
+void mask_to_index_pairs_test() {
     /*
      *   0 1 2 3 4 5
      * 0 * . . . . .
@@ -61,6 +61,34 @@ void index_pairs_test() {
     free((void*) warp_path);
     strided_mask_destroy(mask);
 }
+
+void mask_from_index_pairs_test() {
+    /*
+     *   0 1 2 3 4 5
+     * 0 * . . . . .
+     * 1 * * . . . .
+     * 2 . * . . . .
+     * 3 . * * * . .
+     * 4 . . . . * *
+     */
+    const size_t path_length = 9;
+    size_t* index_pairs = malloc(2*path_length*sizeof(size_t));
+    index_pairs[0] = 0; index_pairs[1] = 0;
+    index_pairs[2] = 1; index_pairs[3] = 0;
+    index_pairs[4] = 1; index_pairs[5] = 1;
+    index_pairs[6] = 2; index_pairs[7] = 1;
+    index_pairs[8] = 3; index_pairs[9] = 1;
+    index_pairs[10] = 3; index_pairs[11] = 2;
+    index_pairs[12] = 3; index_pairs[13] = 3;
+    index_pairs[14] = 4; index_pairs[15] = 4;
+    index_pairs[16] = 4; index_pairs[17] = 5;
+
+    strided_mask_t* mask = strided_mask_from_index_pairs(index_pairs, path_length);
+    free(index_pairs);
+    strided_mask_printf(mask);
+    strided_mask_destroy(mask);
+}
+
 
 void expand_radius_zero_test() {
     // Expansion by radius zero still is an upscale by 2x
@@ -155,7 +183,8 @@ void expand_radius_two_test() {
 int main() {
     const struct CMUnitTest tests[] = {
             cmocka_unit_test(create_test),
-            cmocka_unit_test(index_pairs_test),
+            cmocka_unit_test(mask_from_index_pairs_test),
+            cmocka_unit_test(mask_to_index_pairs_test),
             cmocka_unit_test(expand_radius_zero_test),
             cmocka_unit_test(expand_radius_one_test),
             cmocka_unit_test(expand_radius_two_test),
