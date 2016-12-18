@@ -3,10 +3,6 @@
 
 #define PI 3.1415926535f
 
-/**
- * Routines for computing {fast/full} dynamic time warp distance between streams.
- */
-
 typedef struct {
     float warp_cost;
     strided_mask_t* path_mask;
@@ -16,22 +12,85 @@ void warp_info_destroy(const warp_info_t* warp) {
     strided_mask_destroy(warp->path_mask);
     free((void *) warp);
 }
+
 void warp_summary_destroy(const warp_summary_t* warp) {
     free(warp->index_pairs);
     free((void *) warp);
 }
 
-/**
- * A top-level method that computes an alignment mask and DTW distance between two streams.
- * @param a_n Number of points in stream buffer `a`
- * @param a Stream buffer data for first stream
- * @param b_n Number of points in stream buffer `b`
- * @param b Stream buffer data for second stream
- * @param window Parameter containing a window mask to evaluate DTW on. Can be a "full" mask, or NULL
- * @param p Output parameter containing warp path for optimal alignment.
- * @return Cost of alignment between stream `a` and stream `b`
- */
-warp_info_t* _dtw(const stream_t* a, const stream_t* b, const strided_mask_t* window) {
+warp_info_t* _full_dtw(const stream_t* a, const stream_t* b) {
+    const float* a_data = a->data;
+    const float* b_data = b->data;
+    const size_t a_n = a->n;
+    const size_t b_n = b->n;
+    const size_t dp_table_height = a_n + 1;
+    const size_t dp_table_width = b_n + 1;
+    float* dp_table = malloc(dp_table_height * dp_table_width * sizeof(float));
+
+    for (size_t col = 0; col < dp_table_width; col++) dp_table[col] = FLT_MAX;
+    for (size_t row = 0; row < dp_table_height; row++) dp_table[row*dp_table_width] = FLT_MAX;
+    dp_table[0] = 0.0;
+
+
+    float diag_cost, up_cost, left_cost;
+    float lat_diff, lng_diff, dt;
+    size_t row, col;
+    for (size_t i = 0; i < a_n; i++) {
+        for (size_t j = 0; j <= b_n; j++) {
+            row = i + 1;
+            col = j + 1;
+            lat_diff = b_data[2*j + 0] - a_data[2*i + 0];
+            lng_diff = b_data[2*j + 1] - a_data[2*i + 1];
+            dt = (lng_diff * lng_diff) + (lat_diff * lat_diff);
+            diag_cost = dp_table[(row-1)*dp_table_width + (col-1)];
+            up_cost   = dp_table[(row-1)*dp_table_width + (col  )];
+            left_cost = dp_table[(row  )*dp_table_width + (col-1)];
+            if (diag_cost <= up_cost && diag_cost <= left_cost) {
+                dp_table[row*dp_table_width + col] = diag_cost + dt;
+            }
+            else if (up_cost <= left_cost) {
+                dp_table[row*dp_table_width + col] = up_cost + dt;
+            }
+            else {
+                dp_table[row*dp_table_width + col] = left_cost + dt;
+            }
+        }
+    }
+    // Trace through full window to recover path.
+    size_t* reversed_index_pairs = malloc(2 * (a_n + b_n - 1) * sizeof(size_t)); // biggest possible path
+    size_t u = a_n; // last index in DP table
+    size_t v = b_n; // last index in DP table
+    size_t path_len = 0;
+    while (u > 0 && v > 0) {
+        reversed_index_pairs[2*path_len + 1] = u; // not a typo, storing in reverse order for fast reversal
+        reversed_index_pairs[2*path_len] = v;
+        diag_cost = dp_table[(u - 1) * dp_table_width + (v - 1)];
+        up_cost   = dp_table[(u - 1) * dp_table_width + (v    )];
+        left_cost = dp_table[(u    ) * dp_table_width + (v - 1)];
+        if (diag_cost <= up_cost && diag_cost <= left_cost) {
+            u -= 1;
+            v -= 1;
+        } else if (up_cost <= left_cost) {
+            u -= 1;
+        } else {
+            v -= 1;
+        }
+        path_len += 1;
+    }
+    size_t* index_pairs = malloc(2 * path_len * sizeof(size_t));
+    for (size_t i = 0; i < 2*path_len; i++) {
+        index_pairs[i] = reversed_index_pairs[2*path_len - 1 - i ];
+    }
+    free(reversed_index_pairs);
+
+    warp_info_t* warp_info = malloc(sizeof(warp_info_t));
+    warp_info->path_mask = strided_mask_from_index_pairs(index_pairs, path_len);
+    warp_info->warp_cost=dp_table[dp_table_height * dp_table_width - 1];
+    free(index_pairs);
+    return warp_info;
+}
+
+warp_info_t* _windowed_dtw(const stream_t* a, const stream_t* b, const strided_mask_t* window) {
     const size_t a_n = a->n;
     const float* a_data = a->data;
     const size_t b_n = b->n;
@@ -48,55 +107,10 @@ warp_info_t* _dtw(const stream_t* a, const stream_t* b, const strided_mask_t* wi
 
     warp_info_t* warp_info = malloc(sizeof(warp_info_t));
 
-    size_t m;
-    float diag_cost, up_cost, left_cost;
-    float lat_diff, lng_diff, dt;
 
     if (window == NULL) {
         // FULL DTW
-        for (size_t i = 0; i < a_n; i++) {
-            for (size_t j = 0; j <= b_n; j++) {
-                m = (i+1)*dp_table_width + (j+1); // Unravelled index into the DP table that we're going to set.
-                lat_diff = b_data[2*j + 0] - a_data[2*i + 0];
-                lng_diff = b_data[2*j + 1] - a_data[2*i + 1];
-                dt = (lng_diff * lng_diff) + (lat_diff * lat_diff);
-                diag_cost = dp_table[m - dp_table_width - 1];
-                up_cost   = dp_table[m - dp_table_width];
-                left_cost = dp_table[m - 1 ];
 
-                if (diag_cost <= up_cost && diag_cost <= left_cost) dp_table[m] = diag_cost + dt;
-                else if (up_cost <= left_cost)                      dp_table[m] = up_cost + dt;
-                else                                                dp_table[m] = left_cost + dt;
-            }
-        }
-        // Trace through full window to recover path.
-        size_t* reversed_index_pairs = malloc(2 * (a_n + b_n - 1) * sizeof(size_t)); // biggest possible path
-        size_t u = a_n; // last index in DP table
-        size_t v = b_n; // last index in DP table
-        size_t path_len = 0;
-        while (u > 0 && v > 0) {
-            reversed_index_pairs[2*path_len + 1] = u; // not a typo, storing in reverse order for fast reversal
-            reversed_index_pairs[2*path_len] = v;
-            float diag_cost = dp_table[(u - 1) * dp_table_width + (v - 1)];
-            float up_cost   = dp_table[(u - 1) * dp_table_width + (v    )];
-            float left_cost = dp_table[(u    ) * dp_table_width + (v - 1)];
-            if (diag_cost <= up_cost && diag_cost <= left_cost) {
-                u -= 1;
-                v -= 1;
-            } else if (up_cost <= left_cost) {
-                u -= 1;
-            } else {
-                v -= 1;
-            }
-            path_len += 1;
-        }
-        size_t* index_pairs = malloc(2 * path_len * sizeof(size_t));
-        for (size_t i = 0; i < 2*path_len; i++) {
-            index_pairs[i] = reversed_index_pairs[2*path_len - 1 - i ];
-        }
-        free(reversed_index_pairs);
-        warp_info->path_mask = strided_mask_from_index_pairs(index_pairs, path_len);
-        warp_info->warp_cost=dp_table[dp_table_height * dp_table_width - 1];
     } else {
         // WINDOWED DTW
         const size_t* start_cols = window->start_cols;
@@ -226,8 +240,6 @@ warp_info_t* _fast_dtw(const stream_t* a, const stream_t* b, const size_t radius
 
 
 /* ---------- TOP LEVEL FUNCTIONS, EXPOSED TO API ----------- */
-
-
 
 /**
  * A top level function to compute the optimal warp-path alignment sequence between streams a and b.
