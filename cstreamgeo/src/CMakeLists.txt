@@ -8,7 +8,7 @@ set(STREAMGEO_SRC
         io.c
         roaringmask.c
         stridedmask.c
-        similarity.c
+        alignment.c
         stream.c)
 
 add_library(${STREAMGEO_LIB_NAME} ${STREAMGEO_LIB_TYPE} ${STREAMGEO_SRC})

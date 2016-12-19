@@ -1,5 +1,6 @@
 #include <cstreamgeo/cstreamgeo.h>
 #include <cstreamgeo/stridedmask.h>
+#include <limits.h>
 
 #define PI 3.1415926535f
 
@@ -27,20 +28,14 @@ typedef union {
     } parts;
 } unpacked_float_t;
 
-warp_info_t* _full_dtw(const stream_t* a, const stream_t* b) {
+warp_info_t* _full_dtw(const stream_t* restrict a, const stream_t* restrict b) {
     const float* a_data = a->data;
     const float* b_data = b->data;
     const size_t a_n = a->n;
     const size_t b_n = b->n;
     unpacked_float_t* dp_table = malloc(a_n * b_n * sizeof(unpacked_float_t));
-
-    dp_table[0].f = 0.0;
-
-
     unpacked_float_t diag_cost, up_cost, left_cost;
     float lat_diff, lng_diff, dt;
-
-
     for (size_t row = 0; row < a_n; row++) {
         for (size_t col = 0; col < b_n; col++) {
             lat_diff = b_data[2*col + 0] - a_data[2*row + 0];
@@ -149,58 +144,58 @@ warp_info_t* _full_dtw(const stream_t* a, const stream_t* b) {
 
 
 warp_info_t* _windowed_dtw(const stream_t* a, const stream_t* b, const strided_mask_t* window) {
-    strided_mask_printf(window);
+    //printf("Entering windowed DTW with window:\n");
+    //strided_mask_printf(window);
+    //printf("\n");
     const float* a_data = a->data;
     const float* b_data = b->data;
     const size_t a_n = a->n;
     const size_t b_n = b->n;
-    const size_t dp_table_height = a_n + 1;
-    const size_t dp_table_width = b_n + 1;
     const size_t* initial_start_cols = window->start_cols;
     const size_t* initial_end_cols = window->end_cols;
 
-    unpacked_float_t* dp_table = malloc(dp_table_height * dp_table_width * sizeof(unpacked_float_t));
-
-    for (size_t col = 0; col < dp_table_width; col++) dp_table[col].f = FLT_MAX;
-    for (size_t row = 0; row < dp_table_height; row++) dp_table[row*dp_table_width].f = FLT_MAX;
-    dp_table[0].f = 0.0;
+    unpacked_float_t* dp_table = malloc(a_n * b_n * sizeof(unpacked_float_t));
 
 
     unpacked_float_t diag_cost, up_cost, left_cost;
     float lat_diff, lng_diff, dt;
-    size_t prev_start_col = SIZE_MAX;
-    size_t prev_end_col = SIZE_MAX;
+    int prev_start_col = -1;
+    int prev_end_col = INT_MAX;
     size_t start_col, end_col;
-    for (size_t row = 1; row <= a_n; row++) {
-        start_col = initial_start_cols[row-1];
-        end_col = initial_end_cols[row-1];
-        for (size_t col = start_col+1; col <= end_col; col++) {
-            lat_diff = b_data[2*(col-1) + 0] - a_data[2*(row-1) + 0];
-            lng_diff = b_data[2*(col-1) + 1] - a_data[2*(row-1) + 1];
+    for (size_t row = 0; row < a_n; row++) {
+        start_col = initial_start_cols[row];
+        end_col = initial_end_cols[row];
+        //printf("row, start, end: %zu, %zu, %zu\n", row, start_col, end_col);
+        for (int col = (int) start_col; col <= end_col; col++) {
+            lat_diff = b_data[2*col + 0] - a_data[2*row + 0];
+            lng_diff = b_data[2*col + 1] - a_data[2*row + 1];
             dt = (lng_diff * lng_diff) + (lat_diff * lat_diff);
 
-            diag_cost.f = ( row == 1 || col == 1 || (prev_start_col <= col-1 && col-1 <= prev_end_col)) ? dp_table[(row-1)*dp_table_width + (col-1)].f : FLT_MAX;
+            diag_cost.f = ( row == 0 || col == 0 || col-1 < prev_start_col || prev_end_col < col-1) ? FLT_MAX : dp_table[(row-1)*b_n + (col-1)].f ;
             diag_cost.parts.mantissa &= ~0x0003;
-            up_cost.f   = ( row == 1             || (prev_start_col <= col   && col   <= prev_end_col)) ? dp_table[(row-1)*dp_table_width + (col  )].f : FLT_MAX;
+            up_cost.f   = ( row == 0             || col   < prev_start_col || prev_end_col < col  ) ? FLT_MAX : dp_table[(row-1)*b_n + (col  )].f ;
             up_cost.parts.mantissa   &= ~0x0003;
-            left_cost.f = (             col == 1 || (     start_col <= col-1 && col-1 <=      end_col)) ? dp_table[(row  )*dp_table_width + (col-1)].f : FLT_MAX;
+            left_cost.f = (             col == 0 || col-1 < start_col      || end_col      < col-1) ? FLT_MAX : dp_table[(row  )*b_n + (col-1)].f ;
             left_cost.parts.mantissa &= ~0x0003;
-
-            if (diag_cost.f <= up_cost.f && diag_cost.f <= left_cost.f) {
-                dp_table[row*dp_table_width + col].f = diag_cost.f + dt;
-                dp_table[row*dp_table_width + col].parts.mantissa |= 0x0003;
+            if (row == 0 && col == 0) {
+                dp_table[0].f = 0 + dt;
+                dp_table[0].parts.mantissa |= 0x0003;
+            }
+            else if (diag_cost.f <= up_cost.f && diag_cost.f <= left_cost.f) {
+                dp_table[row*b_n + col].f = diag_cost.f + dt;
+                dp_table[row*b_n + col].parts.mantissa |= 0x0003;
             }
             else if (up_cost.f <= left_cost.f) {
-                dp_table[row*dp_table_width + col].f = up_cost.f + dt;
-                dp_table[row*dp_table_width + col].parts.mantissa |= 0x0002;
+                dp_table[row*b_n + col].f = up_cost.f + dt;
+                dp_table[row*b_n + col].parts.mantissa |= 0x0002;
             }
             else {
-                dp_table[row*dp_table_width + col].f = left_cost.f + dt;
-                dp_table[row*dp_table_width + col].parts.mantissa |= 0x0001;
+                dp_table[row*b_n + col].f = left_cost.f + dt;
+                dp_table[row*b_n + col].parts.mantissa |= 0x0001;
             }
         }
-        prev_start_col = start_col;
-        prev_end_col = end_col;
+        prev_start_col = (int) start_col;
+        prev_end_col = (int) end_col;
     }
 
     size_t u = a_n-1;
@@ -211,11 +206,11 @@ warp_info_t* _windowed_dtw(const stream_t* a, const stream_t* b, const strided_m
 
     size_t path_len = 1;
     path_start_cols[0] = 0;
-    path_end_cols[a_n-1] = b_n-1;
+    path_end_cols[u] = v;
 
     while(u > 0 && v > 0) {
         path_len++;
-        unpacked_float_t cost = dp_table[(u+1)*dp_table_width+(v+1)];
+        unpacked_float_t cost = dp_table[u*b_n + v];
         unsigned int result = cost.parts.mantissa & 0x0003;
         if (result == 0x0003) {
             path_start_cols[u] = v;
@@ -227,14 +222,23 @@ warp_info_t* _windowed_dtw(const stream_t* a, const stream_t* b, const strided_m
             path_end_cols[u-1] = v;
             u -= 1;
         } else {
-            // This was a horizontal step. We don't learn anything about the start or end columns.
             v -= 1;
         }
     }
 
+    if (v == 0) {
+        while (u > 0) {
+            path_start_cols[u] = 0;
+            path_end_cols[u] = 0;
+            u -= 1;
+        }
+        path_end_cols[0] = 0;
+    }
+
     warp_info_t* warp_info = malloc(sizeof(warp_info_t));
+
     warp_info->path_mask = mask;
-    unpacked_float_t final_cost = dp_table[dp_table_height * dp_table_width - 1];
+    unpacked_float_t final_cost = dp_table[a_n * b_n - 1];
     final_cost.parts.mantissa &= ~0x0003;
     warp_info->warp_cost=final_cost.f;
     free(dp_table);
@@ -246,6 +250,7 @@ warp_info_t* _windowed_dtw(const stream_t* a, const stream_t* b, const strided_m
 
 /**
  * Downsamples a stream by a factor of two, averaging consecutive points.
+ * Truncates stream to a multiple of four points, so that upon downsampling, we are left with an even-length stream
  * Allocates memory. Caller must clean up.
  *
  * [a, b, c, d, e, f] --> [(a+b)/2, (c+d)/2, (e+f)/2]
@@ -307,9 +312,10 @@ warp_info_t* _fast_dtw(const stream_t* a, const stream_t* b, const size_t radius
         const stream_t* shrunk_a = _reduce_by_half(a); // Allocates memory
         const stream_t* shrunk_b = _reduce_by_half(b); // Allocates memory
         const warp_info_t* shrunk_warp_info = _fast_dtw(shrunk_a, shrunk_b, radius); // Allocates memory
+        strided_mask_t* new_window = strided_mask_expand(shrunk_warp_info->path_mask, (const int) (a_n % 2),
+                                                         (const int) (b_n % 2), radius); // Allocates memory
         stream_destroy(shrunk_a);
         stream_destroy(shrunk_b);
-        strided_mask_t* new_window = strided_mask_expand(shrunk_warp_info->path_mask, radius); // Allocates memory
         warp_info_destroy(shrunk_warp_info);
         final_warp_info = _windowed_dtw(a, b, new_window); // Allocates memory
         strided_mask_destroy(new_window);
@@ -330,10 +336,6 @@ warp_info_t* _fast_dtw(const stream_t* a, const stream_t* b, const size_t radius
  */
 warp_summary_t* full_align(const stream_t* a, const stream_t* b) {
     const warp_info_t* warp_info = _full_dtw(a, b);
-
-    // DEBUG PRINT
-    //strided_mask_printf(warp_info->path_mask);
-
     warp_summary_t* final_warp = malloc(sizeof(warp_summary_t));
     final_warp->cost = warp_info->warp_cost;
     size_t* length = malloc(sizeof(size_t));
@@ -353,10 +355,13 @@ warp_summary_t* full_align(const stream_t* a, const stream_t* b) {
  */
 
 warp_summary_t* fast_align(const stream_t* a, const stream_t* b, const size_t radius) {
-    warp_summary_t* final_warp = malloc(sizeof(warp_summary_t));
     warp_info_t* warp_info = _fast_dtw(a, b, radius);
+    warp_summary_t* final_warp = malloc(sizeof(warp_summary_t));
     final_warp->cost = warp_info->warp_cost;
-    final_warp->index_pairs = strided_mask_to_index_pairs(warp_info->path_mask, &(final_warp->path_length));
+    size_t* length = malloc(sizeof(size_t));
+    final_warp->index_pairs = strided_mask_to_index_pairs(warp_info->path_mask, length);
+    final_warp->path_length = *length;
+    free(length);
     warp_info_destroy(warp_info);
     return final_warp;
 }

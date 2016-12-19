@@ -239,4 +239,4 @@ strided_mask_t* strided_mask_from_index_pairs(const size_t* index_pairs, const s
  * @param radius
  * @return A new, expanded mask.
  */
-strided_mask_t* strided_mask_expand(const strided_mask_t* mask, const size_t radius);
+strided_mask_t* strided_mask_expand(const strided_mask_t* mask, const int row_parity, const int col_parity, const size_t radius);
