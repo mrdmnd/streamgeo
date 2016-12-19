@@ -102,6 +102,6 @@ void accuracy_benchmark(const size_t u_n, const size_t v_n, const size_t radius_
 }
 
 int main() {
-    return 0;
+    full_random_alignment_benchmark(2000, 2000, 30);
 }
 
