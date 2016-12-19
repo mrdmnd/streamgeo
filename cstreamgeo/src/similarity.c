@@ -18,6 +18,18 @@ void warp_summary_destroy(const warp_summary_t* warp) {
     free((void *) warp);
 }
 
+// TERRIBLE SCARY FLOATING POINT HACKERY AHEAD
+// We store *step-direction* in the low bits of the mantissa - this is a space/accuracy trade off.
+// 11 means "diag", 10 means "up", 01 means "left"
+typedef union {
+    float f;
+    struct {
+        unsigned int mantissa : 23;
+        unsigned int exponent : 8;
+        unsigned int sign : 1;
+    } parts;
+} unpacked_float_t;
+
 warp_info_t* _full_dtw(const stream_t* a, const stream_t* b) {
     const float* a_data = a->data;
     const float* b_data = b->data;
@@ -25,93 +37,209 @@ warp_info_t* _full_dtw(const stream_t* a, const stream_t* b) {
     const size_t b_n = b->n;
     const size_t dp_table_height = a_n + 1;
     const size_t dp_table_width = b_n + 1;
-    float* dp_table = malloc(dp_table_height * dp_table_width * sizeof(float));
+    unpacked_float_t* dp_table = malloc(dp_table_height * dp_table_width * sizeof(unpacked_float_t));
 
-    for (size_t col = 0; col < dp_table_width; col++) dp_table[col] = FLT_MAX;
-    for (size_t row = 0; row < dp_table_height; row++) dp_table[row*dp_table_width] = FLT_MAX;
-    dp_table[0] = 0.0;
+    for (size_t col = 0; col < dp_table_width; col++) dp_table[col].f = FLT_MAX;
+    for (size_t row = 0; row < dp_table_height; row++) dp_table[row*dp_table_width].f = FLT_MAX;
+    dp_table[0].f = 0.0;
 
 
-    float diag_cost, up_cost, left_cost;
+    unpacked_float_t diag_cost, up_cost, left_cost;
     float lat_diff, lng_diff, dt;
-    size_t row, col;
-    for (size_t i = 0; i < a_n; i++) {
-        for (size_t j = 0; j <= b_n; j++) {
-            row = i + 1;
-            col = j + 1;
-            lat_diff = b_data[2*j + 0] - a_data[2*i + 0];
-            lng_diff = b_data[2*j + 1] - a_data[2*i + 1];
+    for (size_t row = 1; row <= a_n; row++) {
+        for (size_t col = 1; col <= b_n; col++) {
+            lat_diff = b_data[2*(col-1) + 0] - a_data[2*(row-1) + 0];
+            lng_diff = b_data[2*(col-1) + 1] - a_data[2*(row-1) + 1];
             dt = (lng_diff * lng_diff) + (lat_diff * lat_diff);
+            // TODO: benchmark against frexp function calls rather than using the union above.
             diag_cost = dp_table[(row-1)*dp_table_width + (col-1)];
-            up_cost   = dp_table[(row-1)*dp_table_width + (col  )];
-            left_cost = dp_table[(row  )*dp_table_width + (col-1)];
-            if (diag_cost <= up_cost && diag_cost <= left_cost) {
-                dp_table[row*dp_table_width + col] = diag_cost + dt;
+            diag_cost.parts.mantissa &= ~0x0003; // Get the "real" the cost by dropping the last two direction bits.
+            up_cost = dp_table[(row-1)*dp_table_width + (col)];
+            up_cost.parts.mantissa &= ~0x0003;
+            left_cost = dp_table[(row)*dp_table_width + (col-1)];
+            left_cost.parts.mantissa &= ~0x0003;
+
+            if (diag_cost.f <= up_cost.f && diag_cost.f <= left_cost.f) {
+                dp_table[row*dp_table_width + col].f = diag_cost.f + dt;
+                dp_table[row*dp_table_width + col].parts.mantissa |= 0x0003; // Set the direction bits for this cell.
             }
-            else if (up_cost <= left_cost) {
-                dp_table[row*dp_table_width + col] = up_cost + dt;
+            else if (up_cost.f <= left_cost.f) {
+                dp_table[row*dp_table_width + col].f = up_cost.f + dt;
+                dp_table[row*dp_table_width + col].parts.mantissa |= 0x0002;
             }
             else {
-                dp_table[row*dp_table_width + col] = left_cost + dt;
+                dp_table[row*dp_table_width + col].f = left_cost.f + dt;
+                dp_table[row*dp_table_width + col].parts.mantissa |= 0x0001;
             }
         }
     }
-    // Trace through full window to recover path.
-    size_t* reversed_index_pairs = malloc(2 * (a_n + b_n - 1) * sizeof(size_t)); // biggest possible path
-    size_t u = a_n; // last index in DP table
-    size_t v = b_n; // last index in DP table
+
+    size_t u = a_n;
+    size_t v = b_n;
     size_t path_len = 0;
-    while (u > 0 && v > 0) {
-        reversed_index_pairs[2*path_len + 1] = u; // not a typo, storing in reverse order for fast reversal
-        reversed_index_pairs[2*path_len] = v;
-        diag_cost = dp_table[(u - 1) * dp_table_width + (v - 1)];
-        up_cost   = dp_table[(u - 1) * dp_table_width + (v    )];
-        left_cost = dp_table[(u    ) * dp_table_width + (v - 1)];
-        if (diag_cost <= up_cost && diag_cost <= left_cost) {
+    strided_mask_t* mask = strided_mask_create(a_n, b_n);
+    size_t* start_cols = mask->start_cols;
+    size_t* end_cols = mask->end_cols;
+    start_cols[0] = 0;
+    end_cols[a_n-1] = b_n-1;
+
+    while(u > 0 && v > 0) {
+        path_len++;
+        unpacked_float_t cost = dp_table[u*dp_table_width+v];
+        unsigned int result = cost.parts.mantissa & 0x0003;
+        if (result == 0x0003) {
+            // This was a diagonal step
+            start_cols[u] = v;
             u -= 1;
             v -= 1;
-        } else if (up_cost <= left_cost) {
+            end_cols[u] = v;
+        } else if (result == 0x0002) {
+            // This was a vertical step
+            start_cols[u] = v;
             u -= 1;
+            end_cols[v] = v;
         } else {
+            // This was a horizontal step
             v -= 1;
         }
-        path_len += 1;
     }
-    size_t* index_pairs = malloc(2 * path_len * sizeof(size_t));
-    for (size_t i = 0; i < 2*path_len; i++) {
-        index_pairs[i] = reversed_index_pairs[2*path_len - 1 - i ];
-    }
-    free(reversed_index_pairs);
 
     warp_info_t* warp_info = malloc(sizeof(warp_info_t));
-    warp_info->path_mask = strided_mask_from_index_pairs(index_pairs, path_len);
-    warp_info->warp_cost=dp_table[dp_table_height * dp_table_width - 1];
-    free(index_pairs);
+    warp_info->path_mask = mask;
+    unpacked_float_t final_cost = dp_table[dp_table_height * dp_table_width - 1];
+    final_cost.parts.mantissa &= ~0x0003;
+    warp_info->warp_cost=final_cost.f;
     return warp_info;
 }
 
-warp_info_t* _windowed_dtw(const stream_t* a, const stream_t* b, const strided_mask_t* window) {
-    const size_t a_n = a->n;
-    const float* a_data = a->data;
-    const size_t b_n = b->n;
-    const float* b_data = b->data;
 
+warp_info_t* _windowed_dtw(const stream_t* a, const stream_t* b, const strided_mask_t* window) {
+    return NULL;
+    /*
+    const float* a_data = a->data;
+    const float* b_data = b->data;
+    const size_t a_n = a->n;
+    const size_t b_n = b->n;
     const size_t dp_table_height = a_n + 1;
     const size_t dp_table_width = b_n + 1;
+    const size_t* start_cols = window->start_cols;
+    const size_t* end_cols = window->end_cols;
 
-    // This is actually very expensive, and we want to be careful not to set the values in the DP table when we don't need to set them.
-    float* dp_table = malloc(dp_table_height * dp_table_width * sizeof(float));
-    for (size_t col = 0; col < dp_table_width; col++) dp_table[col] = FLT_MAX;
-    for (size_t row = 0; row < dp_table_height; row++) dp_table[row*dp_table_width] = FLT_MAX;
-    dp_table[0] = 0.0;
+    unpacked_float_t* dp_table = malloc(dp_table_height * dp_table_width * sizeof(unpacked_float_t));
+
+    for (size_t col = 0; col < dp_table_width; col++) dp_table[col].f = FLT_MAX;
+    for (size_t row = 0; row < dp_table_height; row++) dp_table[row*dp_table_width].f = FLT_MAX;
+    dp_table[0].f = 0.0;
+
+    unpacked_float_t diag_cost, up_cost, left_cost;
+    float lat_diff, lng_diff, dt;
+    for (size_t row = 1; row <= a_n; row++) {
+        for (size_t col = 1 + start_cols[row-1]; col <= end_cols[row-1]; col++) {
+            lat_diff = b_data[2*(col-1) + 0] - a_data[2*(row-1) + 0];
+            lng_diff = b_data[2*(col-1) + 1] - a_data[2*(row-1) + 1];
+            dt = (lng_diff * lng_diff) + (lat_diff * lat_diff);
+            // TODO: benchmark against frexp function calls rather than using the union above.
+            diag_cost = dp_table[(row-1)*dp_table_width + (col-1)];
+            diag_cost.parts.mantissa &= ~0x0003; // Get the "real" the cost by dropping the last two direction bits.
+            up_cost = dp_table[(row-1)*dp_table_width + (col)];
+            up_cost.parts.mantissa &= ~0x0003;
+            left_cost = dp_table[(row)*dp_table_width + (col-1)];
+            left_cost.parts.mantissa &= ~0x0003;
+
+            if (diag_cost.f <= up_cost.f && diag_cost.f <= left_cost.f) {
+                dp_table[row*dp_table_width + col].f = diag_cost.f + dt;
+                dp_table[row*dp_table_width + col].parts.mantissa |= 0x0003; // Set the direction bits for this cell.
+            }
+            else if (up_cost.f <= left_cost.f) {
+                dp_table[row*dp_table_width + col].f = up_cost.f + dt;
+                dp_table[row*dp_table_width + col].parts.mantissa |= 0x0002;
+            }
+            else {
+                dp_table[row*dp_table_width + col].f = left_cost.f + dt;
+                dp_table[row*dp_table_width + col].parts.mantissa |= 0x0001;
+            }
+        }
+    }
+
+    size_t u = a_n;
+    size_t v = b_n;
+    size_t path_len = 0;
+    strided_mask_t* mask = strided_mask_create(a_n, b_n);
+    size_t* start_cols = mask->start_cols;
+    size_t* end_cols = mask->end_cols;
+    start_cols[0] = 0;
+    end_cols[a_n-1] = b_n-1;
+
+    while(u > 0 && v > 0) {
+        path_len++;
+        unpacked_float_t cost = dp_table[u*dp_table_width+v];
+        unsigned int result = cost.parts.mantissa & 0x0003;
+        if (result == 0x0003) {
+            // This was a diagonal step
+            start_cols[u] = v;
+            u -= 1;
+            v -= 1;
+            end_cols[u] = v;
+        } else if (result == 0x0002) {
+            // This was a vertical step
+            start_cols[u] = v;
+            u -= 1;
+            end_cols[v] = v;
+        } else {
+            // This was a horizontal step
+            v -= 1;
+        }
+    }
 
     warp_info_t* warp_info = malloc(sizeof(warp_info_t));
+    warp_info->path_mask = mask;
+    unpacked_float_t final_cost = dp_table[dp_table_height * dp_table_width - 1];
+    final_cost.parts.mantissa &= ~0x0003;
+    warp_info->warp_cost=final_cost.f;
+    return warp_info;
 
 
-    if (window == NULL) {
-        // FULL DTW
 
-    } else {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         // WINDOWED DTW
         const size_t* start_cols = window->start_cols;
         const size_t* end_cols = window->end_cols;
@@ -162,6 +290,8 @@ warp_info_t* _windowed_dtw(const stream_t* a, const stream_t* b, const strided_m
     free(dp_table);
 
     return warp_info;
+
+*/
 }
 
 
@@ -215,13 +345,14 @@ stream_t* _reduce_by_half(const stream_t* input) {
  * @param path Output parameter containing optimal alignment path
  * @return Alignment cost of optimal alignment path
  */
+
 warp_info_t* _fast_dtw(const stream_t* a, const stream_t* b, const size_t radius) {
     const size_t a_n = a->n;
     const size_t b_n = b->n;
     warp_info_t* final_warp_info;
 
     if (a_n <= radius + 2 || b_n <= radius + 2) {
-        final_warp_info = _dtw(a, b, NULL);
+        final_warp_info = _full_dtw(a, b);
     } else {
         const stream_t* shrunk_a = _reduce_by_half(a); // Allocates memory
         const stream_t* shrunk_b = _reduce_by_half(b); // Allocates memory
@@ -230,7 +361,8 @@ warp_info_t* _fast_dtw(const stream_t* a, const stream_t* b, const size_t radius
         stream_destroy(shrunk_b);
         strided_mask_t* new_window = strided_mask_expand(shrunk_warp_info->path_mask, radius); // Allocates memory
         warp_info_destroy(shrunk_warp_info);
-        final_warp_info = _dtw(a, b, new_window); // Allocates memory
+        //final_warp_info = _windowed_dtw(a, b, new_window); // Allocates memory
+        final_warp_info = NULL;
         strided_mask_destroy(new_window);
     }
     return final_warp_info;
@@ -249,7 +381,7 @@ warp_info_t* _fast_dtw(const stream_t* a, const stream_t* b, const size_t radius
  */
 warp_summary_t* full_align(const stream_t* a, const stream_t* b) {
     warp_summary_t* final_warp = malloc(sizeof(warp_summary_t));
-    warp_info_t* warp_info = _dtw(a, b, NULL);
+    warp_info_t* warp_info = _full_dtw(a, b);
     final_warp->cost = warp_info->warp_cost;
     final_warp->index_pairs = strided_mask_to_index_pairs(warp_info->path_mask, &(final_warp->path_length));
     return final_warp;
@@ -262,9 +394,11 @@ warp_summary_t* full_align(const stream_t* a, const stream_t* b) {
  * @param radius Parameter controlling level of approximation. Larger values are slower but more comprehensive.
  * @return A warp_summary structure containing the (approximate) cost, as well as the best approximation to the warp path.
  */
+
 warp_summary_t* fast_align(const stream_t* a, const stream_t* b, const size_t radius) {
     warp_summary_t* final_warp = malloc(sizeof(warp_summary_t));
-    warp_info_t* warp_info = _fast_dtw(a, b, radius);
+    //warp_info_t* warp_info = _fast_dtw(a, b, radius);
+    warp_info_t* warp_info = NULL;
     final_warp->cost = warp_info->warp_cost;
     final_warp->index_pairs = strided_mask_to_index_pairs(warp_info->path_mask, &(final_warp->path_length));
 }

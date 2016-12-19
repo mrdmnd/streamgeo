@@ -35,6 +35,12 @@
 3 . . . . . *
 4 . . . . . *
 
+ typedef struct {
+   size_t start;
+   size_t end;
+ } pair;
+
+
  Example invalid matrices:
 
   0 1 2 3 4 5

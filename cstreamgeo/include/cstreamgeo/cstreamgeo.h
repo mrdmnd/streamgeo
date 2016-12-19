@@ -13,14 +13,14 @@
  * You cannot "add points" to a stream; you must create a new stream with the points added.
  */
 typedef struct stream_s {
+    float* data; // Stream buffer [lat0, lng0, lat1, lng1, ..., latN-1, lngN-1]
     size_t n;    // Number of *POINTS* in the stream. The number of floats in the data member is 2x this value.
-    float* data; // Stream buffer [lat0, lng0, lat1, lng1, ..., latN, lngN]
 } stream_t;
 
 typedef struct warp_summary_s {
-    float cost;          // Result of aligning two streams.
+    size_t* index_pairs; // Indices: [row_0, col_0, row_1, col_1, ..., row_N-1, col_N-1]
     size_t path_length;  // Number of *POINTS* in the warp path. The number of elts in `index_pairs` is 2x this value.
-    size_t* index_pairs; // Indices: [row_0, col_0, row_1, col_1, ..., row_N, col_N]
+    float cost;          // Result of aligning two streams.
 } warp_summary_t;
 
 

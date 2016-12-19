@@ -41,6 +41,7 @@
 *.su
 *.idb
 *.pdb
+*.DS_Store
 
 cstreamgeo/tests/config.h
 
