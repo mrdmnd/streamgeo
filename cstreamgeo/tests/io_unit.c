@@ -31,20 +31,20 @@ void stream_printf(const stream_t* stream) {
 void io_test_small() {
     const char *filename = "/home/mredmond/streamgeo/cstreamgeo/benchmarks/realdata/segments/8109834.json";
 
-    streams_t* streams = read_streams_from_json(filename);
-    if (!streams) {
+    const streams_t* streams_from_json = read_streams_from_json(filename);
+    if (!streams_from_json) {
         printf("Unable to load streams from file '%s'\n", filename);
         return;
     }
-    streams_printf(streams);
 
     const char* output = "output.stream";
-    write_streams_to_binary(output, streams);
+    write_streams_to_binary(output, streams_from_json);
+    streams_destroy(streams_from_json);
 
-    streams = read_streams_from_binary(output);
-    streams_printf(streams);
+    const streams_t* streams_from_binary = read_streams_from_binary(output);
+    streams_printf(streams_from_binary);
+    streams_destroy(streams_from_binary);
 }
-
 
 int main() {
     const struct CMUnitTest tests[] = {

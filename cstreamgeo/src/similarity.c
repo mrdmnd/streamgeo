@@ -13,10 +13,6 @@ void warp_info_destroy(const warp_info_t* warp) {
     free((void *) warp);
 }
 
-void warp_summary_destroy(const warp_summary_t* warp) {
-    free(warp->index_pairs);
-    free((void *) warp);
-}
 
 // TERRIBLE SCARY FLOATING POINT HACKERY AHEAD
 // We store *step-direction* in the low bits of the mantissa - this is a space/accuracy trade off.
@@ -74,32 +70,35 @@ warp_info_t* _full_dtw(const stream_t* a, const stream_t* b) {
         }
     }
 
-    size_t u = a_n;
-    size_t v = b_n;
-    size_t path_len = 0;
+    size_t u = a_n-1;
+    size_t v = b_n-1;
     strided_mask_t* mask = strided_mask_create(a_n, b_n);
     size_t* start_cols = mask->start_cols;
     size_t* end_cols = mask->end_cols;
+
+    size_t path_len = 1;
     start_cols[0] = 0;
     end_cols[a_n-1] = b_n-1;
 
     while(u > 0 && v > 0) {
         path_len++;
-        unpacked_float_t cost = dp_table[u*dp_table_width+v];
+        unpacked_float_t cost = dp_table[(u+1)*dp_table_width+(v+1)];
         unsigned int result = cost.parts.mantissa & 0x0003;
         if (result == 0x0003) {
-            // This was a diagonal step
+            // This was a diagonal step: we know that the current column (v) is the "start" column for this row (u),
+            // and that the column one to our left (v-1) is the "end" column for the row above us (u-1).
             start_cols[u] = v;
+            end_cols[u-1] = v-1;
             u -= 1;
             v -= 1;
-            end_cols[u] = v;
         } else if (result == 0x0002) {
-            // This was a vertical step
+            // This was a vertical step: we know that the current column (v) is the "start" column for this row (u),
+            // and that the current column (v) is also the "end" column for the row above this row (u-1)
             start_cols[u] = v;
+            end_cols[u-1] = v;
             u -= 1;
-            end_cols[v] = v;
         } else {
-            // This was a horizontal step
+            // This was a horizontal step. We don't learn anything about the start or end columns.
             v -= 1;
         }
     }
@@ -109,6 +108,7 @@ warp_info_t* _full_dtw(const stream_t* a, const stream_t* b) {
     unpacked_float_t final_cost = dp_table[dp_table_height * dp_table_width - 1];
     final_cost.parts.mantissa &= ~0x0003;
     warp_info->warp_cost=final_cost.f;
+    free(dp_table);
     return warp_info;
 }
 
@@ -381,9 +381,10 @@ warp_info_t* _fast_dtw(const stream_t* a, const stream_t* b, const size_t radius
  */
 warp_summary_t* full_align(const stream_t* a, const stream_t* b) {
     warp_summary_t* final_warp = malloc(sizeof(warp_summary_t));
-    warp_info_t* warp_info = _full_dtw(a, b);
+    const warp_info_t* warp_info = _full_dtw(a, b);
     final_warp->cost = warp_info->warp_cost;
     final_warp->index_pairs = strided_mask_to_index_pairs(warp_info->path_mask, &(final_warp->path_length));
+    warp_info_destroy(warp_info);
     return final_warp;
 }
 
@@ -398,9 +399,11 @@ warp_summary_t* full_align(const stream_t* a, const stream_t* b) {
 warp_summary_t* fast_align(const stream_t* a, const stream_t* b, const size_t radius) {
     warp_summary_t* final_warp = malloc(sizeof(warp_summary_t));
     //warp_info_t* warp_info = _fast_dtw(a, b, radius);
-    warp_info_t* warp_info = NULL;
+    const warp_info_t* warp_info = NULL;
     final_warp->cost = warp_info->warp_cost;
     final_warp->index_pairs = strided_mask_to_index_pairs(warp_info->path_mask, &(final_warp->path_length));
+    warp_info_destroy(warp_info);
+    return final_warp;
 }
 
 /**
@@ -452,7 +455,7 @@ float redmond_similarity(const stream_t* a, const stream_t* b, const size_t radi
     float* a_sparsity = stream_sparsity(a);
     float* b_sparsity = stream_sparsity(b);
 
-    warp_summary_t* warp_summary = fast_align(a, b, radius);
+    const warp_summary_t* warp_summary = fast_align(a, b, radius);
     size_t path_length = warp_summary->path_length;
     size_t* warp_path = warp_summary->index_pairs;
 
@@ -477,7 +480,8 @@ float redmond_similarity(const stream_t* a, const stream_t* b, const size_t radi
         total_weight_error += (error * weight);
     }
 
-    warp_summary_destroy(warp_summary);
+    free(warp_summary->index_pairs);
+    free((void*) warp_summary);
     free(a_sparsity);
     free(b_sparsity);
 

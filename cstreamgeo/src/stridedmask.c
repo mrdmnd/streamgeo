@@ -80,36 +80,6 @@ size_t* strided_mask_to_index_pairs(const strided_mask_t* mask, size_t* path_len
     return path;
 }
 
-strided_mask_t* strided_mask_from_index_pairs(const size_t* index_pairs, const size_t path_length) {
-    // [0, 0, 1, 0, 1, 1, 2, 1, 3, 1, 3, 2, 3, 3, 4, 4, 4, 5]
-    //  0  1  2  3  4  5  6  7  8  9  0  1  2  3  4  5  6  7
-    // path_length = 9
-    const size_t n_rows = index_pairs[2*(path_length-1)] + 1;
-    const size_t n_cols = index_pairs[2*(path_length-1)+1] + 1;
-    strided_mask_t* mask = strided_mask_create(n_rows, n_cols);
-    size_t* start_cols = mask->start_cols;
-    size_t* end_cols = mask->end_cols;
-
-    int old_row = -1;
-    int old_col = -1;
-    int new_row;
-    int new_col;
-    // Boundary initializers
-    start_cols[0] = 0;
-    end_cols[n_rows] = n_cols;
-    for (size_t index = 0; index < path_length; index++) {
-        new_row = (int) index_pairs[2 * index];
-        new_col = (int) index_pairs[2 * index + 1];
-        if (new_row > old_row) {
-            start_cols[new_row] = (size_t) new_col;
-            end_cols[old_row] = (size_t) old_col;
-        }
-        old_row = new_row;
-        old_col = new_col;
-    }
-    return mask;
-}
-
 strided_mask_t* strided_mask_expand(const strided_mask_t* mask, const size_t radius) {
     const size_t n_rows_initial = mask->n_rows;
     const size_t n_cols_initial = mask->n_cols;
@@ -121,15 +91,19 @@ strided_mask_t* strided_mask_expand(const strided_mask_t* mask, const size_t rad
     size_t* start_cols_final = malloc(n_rows_final * sizeof(size_t));
     size_t* end_cols_final = malloc(n_rows_final * sizeof(size_t));
 
-    for (int row = 0; row < (int) n_rows_final; row++) { // NOTE: this is an int on purpose, we want to be able to subtract values and see negative numbers.
-        start_cols_final[row] = (size_t) MAX((int) (2 * start_cols_initial[MAX(row - (int) radius,                  0) / 2]    ) - (int) radius,                  0);
-        end_cols_final[row]   = (size_t) MIN((int) (2 *   end_cols_initial[MIN(row + (int) radius, (int) n_rows_final) / 2] + 1) + (int) radius, (int) n_rows_final);
-    }
-
     strided_mask_t* retmask = malloc(sizeof(strided_mask_t));
     retmask->n_rows = n_rows_final;
     retmask->n_cols = n_cols_final;
     retmask->start_cols = start_cols_final;
     retmask->end_cols = end_cols_final;
+
+    for (int row = 0; row < (int) n_rows_final; row++) { // NOTE: this is an int on purpose, we want to be able to subtract values and see negative numbers.
+        size_t prev_row = (size_t) (MAX(row - (int) radius,                      0) / 2);
+        size_t next_row = (size_t) (MIN(row + (int) radius, (int) n_rows_final - 1) / 2);
+        start_cols_final[row] = (size_t) MAX((int) (2 * start_cols_initial[prev_row]    ) - (int) radius,                    0);
+        end_cols_final[row]   = (size_t) MIN((int) (2 *   end_cols_initial[next_row] + 1) + (int) radius, (int) n_cols_final-1);
+    }
+
+
     return retmask;
 }

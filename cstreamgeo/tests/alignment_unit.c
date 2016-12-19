@@ -16,57 +16,31 @@ void warp_summary_printf(const warp_summary_t* warp_summary) {
 
 void align_test_small() {
 
-    size_t a_n = 8;
+    size_t a_n = 4;
     const stream_t* a = stream_create_from_list(a_n,
                                                 0.0, 0.0,
-                                                1.0, 0.0,
-                                                2.0, 0.0,
-                                                3.0, 1.0,
-                                                4.0, 2.0,
-                                                5.0, 3.0,
-                                                5.0, 5.0,
-                                                6.0, 5.0
+                                                2.0, 4.0,
+                                                4.0, 4.0,
+                                                6.0, 0.0
     );
-    /* o o o o o o o
-     * o o o o o o o
-     * o o o o o 7 8
-     * o o o o o o o
-     * o o o o o 6 o
-     * o o o o 5 o o
-     * o o o 4 o o o
-     * 1 2 3 o o o o
-     */
 
-    size_t b_n = 7;
+    size_t b_n = 3;
     const stream_t* b = stream_create_from_list(b_n,
-                                                0.0, 0.0,
-                                                2.0, 0.0,
-                                                3.0, 2.0,
-                                                5.0, 4.0,
-                                                6.0, 4.0,
-                                                6.0, 7.0,
-                                                8.0, 7.0
+                                                1.0, 0.0,
+                                                3.0, 3.5,
+                                                5.0, 0.0
     );
-    /*
-     * o o o o o o 6 o 7
-     * o o o o o o o o o
-     * o o o o o o o o o
-     * o o o o o 4 5 o o
-     * o o o o o o o o o
-     * o o o 3 o o o o o
-     * o o o o o o o o o
-     * 1 o 2 o o o o o o
-     */
 
     const warp_summary_t* warp_summary = full_align(a, b);
     warp_summary_printf(warp_summary);
-    assert_int_equal(warp_summary->path_length, 8);
-    assert_true(warp_summary->cost == 13.0);
-    size_t correct[16] = {0, 0, 1, 1, 2, 2, 3, 3, 4, 3, 5, 3, 6, 4, 7, 5};
+    assert_int_equal(warp_summary->path_length, 4);
+    assert_true(warp_summary->cost == 4.5000);
+    size_t correct[8] = {0, 0, 1, 1, 2, 1, 3, 2};
     for (size_t i = 0; i < 2*warp_summary->path_length; i++) {
         assert_true(warp_summary->index_pairs[i] == correct[i]);
     }
-
+    free(warp_summary->index_pairs);
+    free((void*) warp_summary);
     stream_destroy(a);
     stream_destroy(b);
 }

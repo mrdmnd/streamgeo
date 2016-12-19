@@ -2,6 +2,8 @@
 #define IO_H
 
 #include <cstreamgeo/cstreamgeo.h>
+
+#define _XOPEN_SOURCE 700 // needed for getline() function
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -20,12 +22,16 @@ typedef struct streams_s {
     size_t n;
 } streams_t;
 
+streams_t* streams_create(const size_t n);
+
+void streams_destroy(const streams_t* streams);
+
 /**
  * Load a collection of streams from the file specified by filename.
  * Each line of the file is assumed to represent one stream.
  * Each line (stream) should be a list of lat/long points, represented as a list with two elements
  */
-streams_t* read_streams_from_json(const char* filename);
+const streams_t* read_streams_from_json(const char* filename);
 
 /**
  * Write the given collection of streams to the given file.
@@ -39,6 +45,6 @@ void write_streams_to_binary(const char* filename, const streams_t* streams);
  * There is absolutely no error checking on the supplied file,
  * which may in some cases lead to a buffer overflow.
  */
-streams_t* read_streams_from_binary(const char* filename);
+const streams_t* read_streams_from_binary(const char* filename);
 
 #endif
