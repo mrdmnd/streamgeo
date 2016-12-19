@@ -5,6 +5,7 @@ else ()
 endif ()
 
 set(STREAMGEO_SRC
+        io.c
         roaringmask.c
         stridedmask.c
         similarity.c
