@@ -59,13 +59,13 @@ void strided_mask_printf(const strided_mask_t* mask) {
 }
 
 size_t* strided_mask_to_index_pairs(const strided_mask_t* mask, size_t* path_length) {
+    //strided_mask_printf(mask);
     const size_t n_rows = mask->n_rows;
     const size_t n_cols = mask->n_cols;
     const size_t* start_cols = mask->start_cols;
     const size_t* end_cols = mask->end_cols;
 
-    // Maximum size is n_rows + n_cols - 1 (follow the border, but don't double count corner)
-    size_t* path = calloc(2 * (n_rows + n_cols - 1), sizeof(size_t));
+    size_t* path = malloc(2 * (n_rows + n_cols - 1) * sizeof(size_t));
     size_t index = 0;
     size_t start, end;
     for (size_t row = 0; row < n_rows; row++) {
@@ -76,8 +76,19 @@ size_t* strided_mask_to_index_pairs(const strided_mask_t* mask, size_t* path_len
             path[index++] = col;
         }
     }
+    path = realloc(path, index * sizeof(size_t));
     *path_length = index / 2;
     return path;
+}
+
+
+size_t strided_mask_path_length(const strided_mask_t* mask) {
+    // The number of the elements in the path is the sum of difference between start and end for each row.
+    size_t path_len = 0;
+    for (size_t row = 0; row < mask->n_rows; row++) {
+        path_len += ((int)mask->end_cols[row] - (int)mask->start_cols[row]);
+    }
+    return path_len;
 }
 
 strided_mask_t* strided_mask_expand(const strided_mask_t* mask, const size_t radius) {

@@ -32,58 +32,80 @@ warp_info_t* _full_dtw(const stream_t* a, const stream_t* b) {
     const float* b_data = b->data;
     const size_t a_n = a->n;
     const size_t b_n = b->n;
-    const size_t dp_table_height = a_n + 1;
-    const size_t dp_table_width = b_n + 1;
-    unpacked_float_t* dp_table = malloc(dp_table_height * dp_table_width * sizeof(unpacked_float_t));
+    unpacked_float_t* dp_table = malloc(a_n * b_n * sizeof(unpacked_float_t));
 
-    for (size_t col = 0; col < dp_table_width; col++) dp_table[col].f = FLT_MAX;
-    for (size_t row = 0; row < dp_table_height; row++) dp_table[row*dp_table_width].f = FLT_MAX;
     dp_table[0].f = 0.0;
 
 
     unpacked_float_t diag_cost, up_cost, left_cost;
     float lat_diff, lng_diff, dt;
-    for (size_t row = 1; row <= a_n; row++) {
-        for (size_t col = 1; col <= b_n; col++) {
-            lat_diff = b_data[2*(col-1) + 0] - a_data[2*(row-1) + 0];
-            lng_diff = b_data[2*(col-1) + 1] - a_data[2*(row-1) + 1];
+
+
+    for (size_t row = 0; row < a_n; row++) {
+        for (size_t col = 0; col < b_n; col++) {
+            lat_diff = b_data[2*col + 0] - a_data[2*row + 0];
+            lng_diff = b_data[2*col + 1] - a_data[2*row + 1];
             dt = (lng_diff * lng_diff) + (lat_diff * lat_diff);
             // TODO: benchmark against frexp function calls rather than using the union above.
-            diag_cost = dp_table[(row-1)*dp_table_width + (col-1)];
-            diag_cost.parts.mantissa &= ~0x0003; // Get the "real" the cost by dropping the last two direction bits.
-            up_cost = dp_table[(row-1)*dp_table_width + (col)];
+            diag_cost.f = (row == 0 || col == 0) ? FLT_MAX : dp_table[(row-1)*b_n + (col-1)].f;
+            diag_cost.parts.mantissa &= ~0x0003;
+            up_cost.f  =  (row == 0            ) ? FLT_MAX : dp_table[(row-1)*b_n + (col  )].f;
             up_cost.parts.mantissa &= ~0x0003;
-            left_cost = dp_table[(row)*dp_table_width + (col-1)];
+            left_cost.f = (            col == 0) ? FLT_MAX : dp_table[(row  )*b_n + (col-1)].f;
             left_cost.parts.mantissa &= ~0x0003;
 
-            if (diag_cost.f <= up_cost.f && diag_cost.f <= left_cost.f) {
-                dp_table[row*dp_table_width + col].f = diag_cost.f + dt;
-                dp_table[row*dp_table_width + col].parts.mantissa |= 0x0003; // Set the direction bits for this cell.
+            // Special note: the (0,0) case is weird on boundary conditions -- all its costs are FLT_MAX, but we want it to be zero
+            // so the diag_cost compares favorable here and we do the right thing
+            if (row == 0 && col == 0) {
+                dp_table[0].f = 0 + dt;
+                dp_table[0].parts.mantissa |= 0x0003;
+            }
+            else if (diag_cost.f <= up_cost.f && diag_cost.f <= left_cost.f) {
+                dp_table[row*b_n + col].f = diag_cost.f + dt;
+                dp_table[row*b_n + col].parts.mantissa |= 0x0003; // Set the direction bits for this cell.
             }
             else if (up_cost.f <= left_cost.f) {
-                dp_table[row*dp_table_width + col].f = up_cost.f + dt;
-                dp_table[row*dp_table_width + col].parts.mantissa |= 0x0002;
+                dp_table[row*b_n + col].f = up_cost.f + dt;
+                dp_table[row*b_n + col].parts.mantissa |= 0x0002;
             }
             else {
-                dp_table[row*dp_table_width + col].f = left_cost.f + dt;
-                dp_table[row*dp_table_width + col].parts.mantissa |= 0x0001;
+                dp_table[row*b_n + col].f = left_cost.f + dt;
+                dp_table[row*b_n + col].parts.mantissa |= 0x0001;
             }
         }
     }
 
-    size_t u = a_n-1;
-    size_t v = b_n-1;
-    strided_mask_t* mask = strided_mask_create(a_n, b_n);
+    // DEBUG: print the dp_table
+    /*
+    for (size_t row = 0; row < a_n; row++) {
+        for (size_t col = 0; col < b_n; col++) {
+            unpacked_float_t value = dp_table[row*b_n + col];
+            unsigned int direction = value.parts.mantissa & 0x0003;
+            if (direction==3) {
+                printf("↖");
+            } else if (direction==2) {
+                printf("↥");
+            } else {
+                printf("↤");
+            }
+        }
+        printf("\n");
+    }*/
+
+    size_t u = a_n - 1;
+    size_t v = b_n - 1;
+    strided_mask_t* mask = strided_mask_create(a_n, b_n); // sometimes this line seems to create masks with not enough columns?
     size_t* start_cols = mask->start_cols;
     size_t* end_cols = mask->end_cols;
 
     size_t path_len = 1;
     start_cols[0] = 0;
-    end_cols[a_n-1] = b_n-1;
+    end_cols[u] = v;
 
     while(u > 0 && v > 0) {
         path_len++;
-        unpacked_float_t cost = dp_table[(u+1)*dp_table_width+(v+1)];
+        size_t index = u*b_n + v;
+        unpacked_float_t cost = dp_table[index];
         unsigned int result = cost.parts.mantissa & 0x0003;
         if (result == 0x0003) {
             // This was a diagonal step: we know that the current column (v) is the "start" column for this row (u),
@@ -103,10 +125,22 @@ warp_info_t* _full_dtw(const stream_t* a, const stream_t* b) {
             v -= 1;
         }
     }
+    // TODO: This is super janky; figure out how to do it better.
+    // Problem: if you stop iterating when u > 0 and v > 0, then any time the paths ends up in a sequence of vertical steps, you don't capture them, because v is already zero
+    if (v == 0) {
+        while (u > 0) {
+            start_cols[u] = 0;
+            end_cols[u] = 0;
+            u -= 1;
+        }
+        end_cols[0] = 0;
+    }
+
+
 
     warp_info_t* warp_info = malloc(sizeof(warp_info_t));
     warp_info->path_mask = mask;
-    unpacked_float_t final_cost = dp_table[dp_table_height * dp_table_width - 1];
+    unpacked_float_t final_cost = dp_table[a_n*b_n - 1];
     final_cost.parts.mantissa &= ~0x0003;
     warp_info->warp_cost=final_cost.f;
     free(dp_table);
@@ -115,15 +149,7 @@ warp_info_t* _full_dtw(const stream_t* a, const stream_t* b) {
 
 
 warp_info_t* _windowed_dtw(const stream_t* a, const stream_t* b, const strided_mask_t* window) {
-    // Conditions on front are when we can actually just go look at the DP table.
-    // For instance, when row == 1 in the DP table, you know that the row above you is the boundary so, so it's definitely safe to do a dp_table lookup.
-    // When row and col are greater than 1
-    // TODO: Might be optimizable further - could trade off more branching for one less memory access - consider that we already know the exact value when row == 1 or col == 1 in these cases.
-    // i think we need to add one to col maybe in the bounds check
-    //            diag_cost = ( row == 1 || col == 1 || (prev_start <= col-1 && col-1 <= prev_end)) ? dp_table[m - dp_table_width - 1] : FLT_MAX;
-    //            up_cost   = ( row == 1             || (prev_start <= col   && col   <= prev_end)) ? dp_table[m - dp_table_width    ] : FLT_MAX;
-    //            left_cost = (             col == 1 || (     start <= col-1 && col-1 <=      end)) ? dp_table[m                  - 1] : FLT_MAX;
-
+    strided_mask_printf(window);
     const float* a_data = a->data;
     const float* b_data = b->data;
     const size_t a_n = a->n;
@@ -141,7 +167,6 @@ warp_info_t* _windowed_dtw(const stream_t* a, const stream_t* b, const strided_m
 
 
     unpacked_float_t diag_cost, up_cost, left_cost;
-    const unpacked_float_t unpacked_max = {FLT_MAX};
     float lat_diff, lng_diff, dt;
     size_t prev_start_col = SIZE_MAX;
     size_t prev_end_col = SIZE_MAX;
@@ -153,11 +178,12 @@ warp_info_t* _windowed_dtw(const stream_t* a, const stream_t* b, const strided_m
             lat_diff = b_data[2*(col-1) + 0] - a_data[2*(row-1) + 0];
             lng_diff = b_data[2*(col-1) + 1] - a_data[2*(row-1) + 1];
             dt = (lng_diff * lng_diff) + (lat_diff * lat_diff);
-            diag_cost = ( row == 1 || col == 1 || (prev_start_col <= col-1 && col-1 <= prev_end_col)) ? dp_table[(row-1)*dp_table_width + (col-1)] : unpacked_max;
+
+            diag_cost.f = ( row == 1 || col == 1 || (prev_start_col <= col-1 && col-1 <= prev_end_col)) ? dp_table[(row-1)*dp_table_width + (col-1)].f : FLT_MAX;
             diag_cost.parts.mantissa &= ~0x0003;
-            up_cost   = ( row == 1             || (prev_start_col <= col   && col   <= prev_end_col)) ? dp_table[(row-1)*dp_table_width + (col  )] : unpacked_max;
-            up_cost.parts.mantissa &= ~0x0003;
-            left_cost = (             col == 1 || (     start_col <= col-1 && col-1 <=      end_col)) ? dp_table[(row  )*dp_table_width + (col-1)] : unpacked_max;
+            up_cost.f   = ( row == 1             || (prev_start_col <= col   && col   <= prev_end_col)) ? dp_table[(row-1)*dp_table_width + (col  )].f : FLT_MAX;
+            up_cost.parts.mantissa   &= ~0x0003;
+            left_cost.f = (             col == 1 || (     start_col <= col-1 && col-1 <=      end_col)) ? dp_table[(row  )*dp_table_width + (col-1)].f : FLT_MAX;
             left_cost.parts.mantissa &= ~0x0003;
 
             if (diag_cost.f <= up_cost.f && diag_cost.f <= left_cost.f) {
@@ -223,6 +249,7 @@ warp_info_t* _windowed_dtw(const stream_t* a, const stream_t* b, const strided_m
  * Allocates memory. Caller must clean up.
  *
  * [a, b, c, d, e, f] --> [(a+b)/2, (c+d)/2, (e+f)/2]
+ * [a, b, c, d, e, f, g] --> [(a+b)/2, (c+d)/2, (e+f)/2]
  * @param input_n Number of points in input buffer
  * @param input Data buffer containing original stream
  * @param output Data buffer containing down-sampled stream
@@ -274,7 +301,7 @@ warp_info_t* _fast_dtw(const stream_t* a, const stream_t* b, const size_t radius
     const size_t b_n = b->n;
     warp_info_t* final_warp_info;
 
-    if (a_n <= radius + 2 || b_n <= radius + 2) {
+    if (a_n < radius + 4 || b_n < radius + 4) {
         final_warp_info = _full_dtw(a, b);
     } else {
         const stream_t* shrunk_a = _reduce_by_half(a); // Allocates memory
@@ -302,10 +329,17 @@ warp_info_t* _fast_dtw(const stream_t* a, const stream_t* b, const size_t radius
  * @return A warp_summary structure containing the cost, as well as the warp path.
  */
 warp_summary_t* full_align(const stream_t* a, const stream_t* b) {
-    warp_summary_t* final_warp = malloc(sizeof(warp_summary_t));
     const warp_info_t* warp_info = _full_dtw(a, b);
+
+    // DEBUG PRINT
+    //strided_mask_printf(warp_info->path_mask);
+
+    warp_summary_t* final_warp = malloc(sizeof(warp_summary_t));
     final_warp->cost = warp_info->warp_cost;
-    final_warp->index_pairs = strided_mask_to_index_pairs(warp_info->path_mask, &(final_warp->path_length));
+    size_t* length = malloc(sizeof(size_t));
+    final_warp->index_pairs = strided_mask_to_index_pairs(warp_info->path_mask, length);
+    final_warp->path_length = *length;
+    free(length);
     warp_info_destroy(warp_info);
     return final_warp;
 }

@@ -163,6 +163,8 @@ void strided_mask_printf(const strided_mask_t* mask);
  */
 size_t* strided_mask_to_index_pairs(const strided_mask_t* mask, size_t* path_length);
 
+size_t strided_mask_path_length(const strided_mask_t* mask);
+
 /**
  * Build a strided mask object (a path mask) from a path.
  * Assumption is that path goes from upper left to lower right corner.
