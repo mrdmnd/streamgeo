@@ -937,7 +937,7 @@ static int memory_equal_display_error(const char* const a, const char* const b,
         }
     }
     if (differences) {
-        cm_print_error("%d bytes of %p and %p differ\n", differences, a, b);
+        cm_print_error("%d bytes of %s and %s differ\n", differences, a, b);
         return 0;
     }
     return 1;
@@ -961,7 +961,7 @@ static int memory_not_equal_display_error(const char* const a,
         }
     }
     if (same == size) {
-        cm_print_error("%" PRIdS "bytes of %p and %p the same\n", same, a, b);
+        cm_print_error("%" PRIdS "bytes of %s and %s the same\n", same, a, b);
         return 0;
     }
     return 1;
@@ -1569,7 +1569,7 @@ void _test_free(void* const ptr, const char* file, const int line) {
                     cm_print_error(SOURCE_LOCATION_FORMAT
                                            ": error: Guard block of %p size=%lu is "
                                            "corrupt\n" SOURCE_LOCATION_FORMAT
-                                           ": note: allocated here at %p\n",
+                                           ": note: allocated here at %s\n",
                                    file, line, ptr,
                                    (unsigned long) block_info->size,
                                    block_info->location.file,

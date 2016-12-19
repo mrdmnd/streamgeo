@@ -166,7 +166,7 @@ warp_info_t* _windowed_dtw(const stream_t* a, const stream_t* b, const strided_m
         start_col = initial_start_cols[row];
         end_col = initial_end_cols[row];
         //printf("row, start, end: %zu, %zu, %zu\n", row, start_col, end_col);
-        for (int col = (int) start_col; col <= end_col; col++) {
+        for (int col = (int) start_col; col <= (int) end_col; col++) { // TODO: check for negative cols
             lat_diff = b_data[2*col + 0] - a_data[2*row + 0];
             lng_diff = b_data[2*col + 1] - a_data[2*row + 1];
             dt = (lng_diff * lng_diff) + (lat_diff * lat_diff);

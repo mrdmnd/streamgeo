@@ -4,7 +4,7 @@ endmacro(append)
 
 set(SANITIZE_FLAGS "")
 if (SANITIZE)
-    set(SANITIZE_FLAGS "-fsanitize=address -fno-omit-frame-pointer -fsanitize=undefined")
+    set(SANITIZE_FLAGS "-fsanitize=address -fno-omit-frame-pointer")
     if (CMAKE_COMPILER_IS_GNUCC)
         # Ubuntu bug for GCC 5.0+ (safe for all versions)
         append(CMAKE_EXE_LINKER_FLAGS "-fuse-ld=gold")
