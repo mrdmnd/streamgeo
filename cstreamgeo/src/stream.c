@@ -1,4 +1,5 @@
 #include <cstreamgeo/cstreamgeo.h>
+#include <stdbool.h>
 
 /**
  * General functions for interacting with a single stream.
@@ -136,8 +137,7 @@ float _point_line_distance(float px, float py, float sx, float sy, float ex, flo
  * @param epsilon Threshold for keeping points (keep if they exceed epsilon distance from line segment bound)
  * @param indices Output object containing indices of keep points.
  */
-void _douglas_peucker(const stream_t* input, const size_t start, const size_t end, const float epsilon,
-                      roaring_bitmap_t* indices) {
+void _douglas_peucker(const stream_t* input, const size_t start, const size_t end, const float epsilon, bool* indices) {
     const float* input_data = input->data;
 
     float d_max = 0.0f;
@@ -161,7 +161,7 @@ void _douglas_peucker(const stream_t* input, const size_t start, const size_t en
             _douglas_peucker(input, start, index_max, epsilon, indices);
         }
         // Add the significant point.
-        roaring_bitmap_add(indices, (uint32_t) index_max);
+        indices[index_max] = 1;
         // Recurse right-half.
         if (end - index_max > 1) {
             _douglas_peucker(input, index_max, end, epsilon, indices);
@@ -179,22 +179,29 @@ stream_t* downsample_ramer_douglas_peucker(const stream_t* input, const float ep
     const size_t input_n = input->n;
     const float* input_data = input->data;
 
-    roaring_bitmap_t* indices = roaring_bitmap_create();
-    roaring_bitmap_add(indices, 0);
-    roaring_bitmap_add(indices, (uint32_t) input_n - 1);
+    bool* indices = malloc(input_n * sizeof(bool));
+    for (size_t i = 0; i < input_n; i++) {
+        indices[i] = 0;
+    }
+    indices[0] = 1;
+    indices[input_n - 1] = 1;
+
     _douglas_peucker(input, 0, input_n - 1, epsilon, indices);
-    size_t n_max = roaring_bitmap_get_cardinality(indices);
-    size_t n = 0;
-    stream_t* output = stream_create(n_max);
+    size_t n_total = 0;
+    for (size_t i = 0; i < input_n; i++) {
+        n_total += indices[i];
+    }
+    stream_t* output = stream_create(n_total);
     float* output_data = output->data;
 
+    size_t n = 0;
     for (size_t i = 0; i < input_n; i++) {
-        if (roaring_bitmap_contains(indices, (uint32_t) i)) {
+        if (indices[i]) {
             output_data[2 * n] = input_data[2 * i];
             output_data[2 * n + 1] = input_data[2 * i + 1];
             n++;
         }
     }
-    roaring_bitmap_free(indices);
+    free(indices);
     return output;
 }

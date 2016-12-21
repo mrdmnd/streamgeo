@@ -71,7 +71,7 @@ const streams_t* read_streams_from_json(const char* filename) {
 
     char* line;
     size_t line_size = 512; // unused, but a hint to the getline fn
-    size_t characters; // also unused
+    ssize_t characters; // also unused
 
     line = malloc(line_size * sizeof(char));
     if (line == NULL) {

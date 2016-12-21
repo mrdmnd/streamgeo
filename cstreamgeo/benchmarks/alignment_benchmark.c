@@ -1,15 +1,15 @@
 #include <stdio.h>
-#include <stdlib.h>
 #include <time.h>
 
 #include <cstreamgeo/cstreamgeo.h>
+#include <cstreamgeo/stridedmask.h>
 
 void full_random_alignment_benchmark(const size_t u_n, const size_t v_n, const size_t iterations) {
+    time_t seed = time(NULL);
+    srand(seed);
     double time_accumulator = 0;
     for (size_t j = 0; j < iterations; j++) {
-        time_t seed = time(NULL);
-        printf("Seed is %zu\n", seed);
-        srand(seed);
+        //printf("Seed is %zu\n", seed);
 
         const stream_t* u = stream_create(u_n);
         float* u_data = u->data;
@@ -43,12 +43,12 @@ void full_random_alignment_benchmark(const size_t u_n, const size_t v_n, const s
 }
 
 void fast_random_alignment_benchmark(const size_t u_n, const size_t v_n, const size_t radius, const size_t iterations) {
+    time_t seed = time(NULL);
+    srand(seed);
     double time_accumulator = 0;
     for (size_t j = 0; j < iterations; j++) {
-        //time_t seed = time(NULL);
-        time_t seed = 1482280780;
-        printf("Seed is %zu\n", seed);
-        srand(seed);
+        //time_t seed = 1482280780;
+        //printf("Seed is %zu\n", seed);
 
         const stream_t* u = stream_create(u_n);
         float* u_data = u->data;
@@ -83,7 +83,8 @@ void fast_random_alignment_benchmark(const size_t u_n, const size_t v_n, const s
 }
 
 void accuracy_benchmark(const size_t u_n, const size_t v_n, const size_t radius_max) {
-    srand(time(NULL));
+    time_t seed = time(NULL);
+    srand(seed);
     const stream_t* u = stream_create(u_n);
     float* u_data = u->data;
     const stream_t* v = stream_create(v_n);
@@ -107,7 +108,7 @@ void accuracy_benchmark(const size_t u_n, const size_t v_n, const size_t radius_
     full_millis = 1000.0*((double) (end - start)) / CLOCKS_PER_SEC;
 
 
-    for (size_t radius = 0; radius < radius_max; radius++) {
+    for (size_t radius = 0; radius <= radius_max; radius++) {
         start = clock();
         const warp_summary_t* fast_warp_summary = fast_align(u, v, radius);
         end = clock();
@@ -129,8 +130,8 @@ void accuracy_benchmark(const size_t u_n, const size_t v_n, const size_t radius_
 }
 
 int main() {
-    //full_random_alignment_benchmark(4000, 4000, 30);
-    fast_random_alignment_benchmark(75, 80, 0, 1);
-    //accuracy_benchmark(400, 415, 10);
+    //full_random_alignment_benchmark(4000, 4000, 10);
+    //fast_random_alignment_benchmark(400, 400, 30, 5);
+    accuracy_benchmark(24000, 24000, 20);
 }
 

@@ -79,7 +79,6 @@
 
 */
 
-#endif
 
 typedef struct strided_mask_s {
     size_t n_rows;
@@ -240,3 +239,5 @@ strided_mask_t* strided_mask_from_index_pairs(const size_t* index_pairs, const s
  * @return A new, expanded mask.
  */
 strided_mask_t* strided_mask_expand(const strided_mask_t* mask, const int row_parity, const int col_parity, const size_t radius);
+
+#endif
