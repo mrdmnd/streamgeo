@@ -41,7 +41,6 @@ warp_info_t* _full_dtw(const stream_t* restrict a, const stream_t* restrict b) {
             lat_diff = b_data[2*col + 0] - a_data[2*row + 0];
             lng_diff = b_data[2*col + 1] - a_data[2*row + 1];
             dt = (lng_diff * lng_diff) + (lat_diff * lat_diff);
-            // TODO: benchmark against frexp function calls rather than using the union above.
             diag_cost.f = (row == 0 || col == 0) ? FLT_MAX : dp_table[(row-1)*b_n + (col-1)].f;
             diag_cost.parts.mantissa &= ~0x0003;
             up_cost.f  =  (row == 0            ) ? FLT_MAX : dp_table[(row-1)*b_n + (col  )].f;
@@ -49,43 +48,28 @@ warp_info_t* _full_dtw(const stream_t* restrict a, const stream_t* restrict b) {
             left_cost.f = (            col == 0) ? FLT_MAX : dp_table[(row  )*b_n + (col-1)].f;
             left_cost.parts.mantissa &= ~0x0003;
 
-            // Special note: the (0,0) case is weird on boundary conditions -- all its costs are FLT_MAX, but we want it to be zero
-            // so the diag_cost compares favorable here and we do the right thing
             if (row == 0 && col == 0) {
                 dp_table[0].f = 0 + dt;
+                dp_table[row*b_n + col].parts.mantissa &= ~0x0003;
                 dp_table[0].parts.mantissa |= 0x0003;
             }
             else if (diag_cost.f <= up_cost.f && diag_cost.f <= left_cost.f) {
                 dp_table[row*b_n + col].f = diag_cost.f + dt;
+                dp_table[row*b_n + col].parts.mantissa &= ~0x0003;
                 dp_table[row*b_n + col].parts.mantissa |= 0x0003; // Set the direction bits for this cell.
             }
             else if (up_cost.f <= left_cost.f) {
                 dp_table[row*b_n + col].f = up_cost.f + dt;
+                dp_table[row*b_n + col].parts.mantissa &= ~0x0003;
                 dp_table[row*b_n + col].parts.mantissa |= 0x0002;
             }
             else {
                 dp_table[row*b_n + col].f = left_cost.f + dt;
+                dp_table[row*b_n + col].parts.mantissa &= ~0x0003;
                 dp_table[row*b_n + col].parts.mantissa |= 0x0001;
             }
         }
     }
-
-    // DEBUG: print the dp_table
-    /*
-    for (size_t row = 0; row < a_n; row++) {
-        for (size_t col = 0; col < b_n; col++) {
-            unpacked_float_t value = dp_table[row*b_n + col];
-            unsigned int direction = value.parts.mantissa & 0x0003;
-            if (direction==3) {
-                printf("↖");
-            } else if (direction==2) {
-                printf("↥");
-            } else {
-                printf("↤");
-            }
-        }
-        printf("\n");
-    }*/
 
     size_t u = a_n - 1;
     size_t v = b_n - 1;
@@ -97,6 +81,7 @@ warp_info_t* _full_dtw(const stream_t* restrict a, const stream_t* restrict b) {
     start_cols[0] = 0;
     end_cols[u] = v;
 
+    /* Trace back through the DP table to recover the warp path. */
     while(u > 0 && v > 0) {
         path_len++;
         size_t index = u*b_n + v;
@@ -120,15 +105,19 @@ warp_info_t* _full_dtw(const stream_t* restrict a, const stream_t* restrict b) {
             v -= 1;
         }
     }
-    // TODO: This is super janky; figure out how to do it better.
-    // Problem: if you stop iterating when u > 0 and v > 0, then any time the paths ends up in a sequence of vertical steps, you don't capture them, because v is already zero
+    // Problem: if you stop iterating when u > 0 and v > 0, you are ending on either a left-edge or an up-edge.
     if (v == 0) {
+        // We're on the left-most edge.
         while (u > 0) {
             start_cols[u] = 0;
             end_cols[u] = 0;
             u -= 1;
         }
         end_cols[0] = 0;
+    } if (u == 0) {
+        // We're on the up-most edge.
+        start_cols[u] = 0;
+        end_cols[u] = v;
     }
 
 
@@ -144,6 +133,7 @@ warp_info_t* _full_dtw(const stream_t* restrict a, const stream_t* restrict b) {
 
 
 warp_info_t* _windowed_dtw(const stream_t* a, const stream_t* b, const strided_mask_t* window) {
+    // REMOVE ME LATER VVVVVV
     //printf("Entering windowed DTW with window:\n");
     //strided_mask_printf(window);
     //printf("\n");
@@ -161,12 +151,12 @@ warp_info_t* _windowed_dtw(const stream_t* a, const stream_t* b, const strided_m
     float lat_diff, lng_diff, dt;
     int prev_start_col = -1;
     int prev_end_col = INT_MAX;
-    size_t start_col, end_col;
-    for (size_t row = 0; row < a_n; row++) {
-        start_col = initial_start_cols[row];
-        end_col = initial_end_cols[row];
-        //printf("row, start, end: %zu, %zu, %zu\n", row, start_col, end_col);
-        for (int col = (int) start_col; col <= (int) end_col; col++) { // TODO: check for negative cols
+    int start_col;
+    int end_col;
+    for (int row = 0; row < a_n; row++) {
+        start_col = (int) initial_start_cols[row];
+        end_col = (int) initial_end_cols[row];
+        for (int col = start_col; col <= end_col; col++) {
             lat_diff = b_data[2*col + 0] - a_data[2*row + 0];
             lng_diff = b_data[2*col + 1] - a_data[2*row + 1];
             dt = (lng_diff * lng_diff) + (lat_diff * lat_diff);
@@ -179,25 +169,59 @@ warp_info_t* _windowed_dtw(const stream_t* a, const stream_t* b, const strided_m
             left_cost.parts.mantissa &= ~0x0003;
             if (row == 0 && col == 0) {
                 dp_table[0].f = 0 + dt;
+                dp_table[row*b_n + col].parts.mantissa &= ~0x0003;
                 dp_table[0].parts.mantissa |= 0x0003;
             }
             else if (diag_cost.f <= up_cost.f && diag_cost.f <= left_cost.f) {
                 dp_table[row*b_n + col].f = diag_cost.f + dt;
+                // Set to 11
+                dp_table[row*b_n + col].parts.mantissa &= ~0x0003;
                 dp_table[row*b_n + col].parts.mantissa |= 0x0003;
             }
             else if (up_cost.f <= left_cost.f) {
                 dp_table[row*b_n + col].f = up_cost.f + dt;
+                // Set to 10
+                dp_table[row*b_n + col].parts.mantissa &= ~0x0003;
                 dp_table[row*b_n + col].parts.mantissa |= 0x0002;
             }
             else {
                 dp_table[row*b_n + col].f = left_cost.f + dt;
+                // Set to 01
+                dp_table[row*b_n + col].parts.mantissa &= ~0x0003;
                 dp_table[row*b_n + col].parts.mantissa |= 0x0001;
             }
         }
-        prev_start_col = (int) start_col;
-        prev_end_col = (int) end_col;
+        prev_start_col = start_col;
+        prev_end_col = end_col;
     }
-
+    /*
+    // DEBUG: print the dp_table
+    // Header
+    printf("  ");
+    for (size_t col = 0; col < b_n; col++) {
+        printf("%zu ", col % 10);
+    }
+    printf("\n");
+    for (size_t row = 0; row < a_n; row++) {
+        printf("%zu ", row % 10);
+        for (size_t col = 0; col < b_n; col++) {
+            if (col < initial_start_cols[row] || col > initial_end_cols[row]) {
+                printf(". ");
+            } else {
+                unpacked_float_t value = dp_table[row*b_n + col];
+                unsigned int direction = value.parts.mantissa & 0x0003;
+                if (direction==3) {
+                    printf("↖ ");
+                } else if (direction==2) {
+                    printf("↥ ");
+                } else {
+                    printf("↤ ");
+                }
+            }
+        }
+        printf("\n");
+    }
+    */
     size_t u = a_n-1;
     size_t v = b_n-1;
     strided_mask_t* mask = strided_mask_create(a_n, b_n);
@@ -211,6 +235,7 @@ warp_info_t* _windowed_dtw(const stream_t* a, const stream_t* b, const strided_m
     while(u > 0 && v > 0) {
         path_len++;
         unpacked_float_t cost = dp_table[u*b_n + v];
+        float timewarp_cost = cost.f;
         unsigned int result = cost.parts.mantissa & 0x0003;
         if (result == 0x0003) {
             path_start_cols[u] = v;
@@ -225,26 +250,27 @@ warp_info_t* _windowed_dtw(const stream_t* a, const stream_t* b, const strided_m
             v -= 1;
         }
     }
-
+    // Scan the
     if (v == 0) {
+        // We're on the left-most edge.
         while (u > 0) {
             path_start_cols[u] = 0;
             path_end_cols[u] = 0;
             u -= 1;
         }
         path_end_cols[0] = 0;
+    } if (u == 0) {
+        // We're on the up-most edge.
+        path_start_cols[u] = 0;
+        path_end_cols[u] = v;
     }
-
     warp_info_t* warp_info = malloc(sizeof(warp_info_t));
-
     warp_info->path_mask = mask;
     unpacked_float_t final_cost = dp_table[a_n * b_n - 1];
     final_cost.parts.mantissa &= ~0x0003;
     warp_info->warp_cost=final_cost.f;
     free(dp_table);
     return warp_info;
-
-
 }
 
 

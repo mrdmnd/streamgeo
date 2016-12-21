@@ -45,7 +45,8 @@ void full_random_alignment_benchmark(const size_t u_n, const size_t v_n, const s
 void fast_random_alignment_benchmark(const size_t u_n, const size_t v_n, const size_t radius, const size_t iterations) {
     double time_accumulator = 0;
     for (size_t j = 0; j < iterations; j++) {
-        time_t seed = time(NULL);
+        //time_t seed = time(NULL);
+        time_t seed = 1482280780;
         printf("Seed is %zu\n", seed);
         srand(seed);
 
@@ -67,6 +68,7 @@ void fast_random_alignment_benchmark(const size_t u_n, const size_t v_n, const s
         start = clock();
         warp_summary_t* warp_summary = fast_align(u, v, radius); // Don't care about the results here; just the computation.
         end = clock();
+        printf("Warp summary: %zu points, %f cost\n", warp_summary->path_length, warp_summary->cost);
         free(warp_summary->index_pairs);
         free((void*) warp_summary);
         time_accumulator += ((double) (end - start)) / CLOCKS_PER_SEC;
@@ -128,7 +130,7 @@ void accuracy_benchmark(const size_t u_n, const size_t v_n, const size_t radius_
 
 int main() {
     //full_random_alignment_benchmark(4000, 4000, 30);
-    //fast_random_alignment_benchmark(10, 11, 1, 1);
-    accuracy_benchmark(400, 415, 10);
+    fast_random_alignment_benchmark(75, 80, 0, 1);
+    //accuracy_benchmark(400, 415, 10);
 }
 

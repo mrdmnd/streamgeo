@@ -3,9 +3,9 @@
 
 #include <math.h>
 #include <float.h>
+#include <stdint.h>
 
 #include <cstreamgeo/utilc.h>
-#include <cstreamgeo/roaringmask.h>
 
 /**
  * Basic geographic stream data structure.

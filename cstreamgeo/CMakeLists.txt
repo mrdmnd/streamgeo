@@ -3,8 +3,7 @@ set(CMAKE_MACOSX_RPATH OFF)
 
 if (NOT CMAKE_BUILD_TYPE)
     message(STATUS "No build type specified, default to release")
-    set(CMAKE_BUILD_TYPE Debug CACHE STRING "Choose the type of build." FORCE)
-    #set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE)
 endif ()
 
 project(cstreamgeo)
