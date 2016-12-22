@@ -3,48 +3,61 @@
 
 #include <cstreamgeo/cstreamgeo.h>
 
-#define _XOPEN_SOURCE 700 // needed for getline() function
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
 /**
- * Basic IO utilities for reading streams from files.
- * A collection of streams can be read from a file listing pairs of lat/lng points in JSON format, one per line.
- * e.g. the first line of the file is
- *   [[1.1,2.2],[3.3,4.4]]
- * and all the other lines represent other streams as well.
- * Streams can also be serialized and deserialized to a file in a binary format.
+ * Allocate space for a new collection of streams.
+ * @param n
+ * @return A collection that can hold `n` stream_t* pointers.
  */
+stream_collection_t* stream_collection_create(const size_t n);
 
-typedef struct streams_s {
-    stream_t** data;
-    size_t n;
-} streams_t;
-
-streams_t* streams_create(const size_t n);
-
-void streams_destroy(const streams_t* streams);
 
 /**
- * Load a collection of streams from the file specified by filename.
+ * Destroy a streams collection object, and recursively destory all streams inside of it.
+ * @param streams
+ */
+void stream_collection_destroy(const stream_collection_t* streams);
+
+/**
+ * Print a stream collection object.
+ * @param streams
+ */
+void stream_collection_printf(const stream_collection_t* streams);
+
+
+/**
+ * Load a collection of streams from the file specified by `filename`.
  * Each line of the file is assumed to represent one stream.
  * Each line (stream) should be a list of lat/long points, represented as a list with two elements
+ * @param filename Path to a file to load from
+ * @return A pointer to a constant stream collection, containing one stream for each line in the file.
  */
-const streams_t* read_streams_from_json(const char* filename);
+const stream_collection_t* read_streams_from_json(const char* filename);
+
 
 /**
- * Write the given collection of streams to the given file.
- * The struct is dumped in a binary format recursively.
- * If the file cannot be opened, this will fail silently.
+ * NOT YET IMPLEMENTED
+ * Write a collection of streams into the file at `filename`.
+ * Format is identical to the corresponding `read` method.
+ * @param filename Path to a file to write out.
+ * @param streams A stream collection object.
  */
-void write_streams_to_binary(const char* filename, const streams_t* streams);
+void write_streams_to_json(const char* filename, const stream_collection_t* streams);
+
 
 /**
  * Read a collection of streams from the given file.
- * There is absolutely no error checking on the supplied file,
- * which may in some cases lead to a buffer overflow.
+ * File format is custom binary.
+ * @param filename Path to a file to load from
+ * @return A pointer to a constant stream collection, containing one stream for each line in the file.
  */
-const streams_t* read_streams_from_binary(const char* filename);
+const stream_collection_t* read_streams_from_binary(const char* filename);
+
+
+/**
+ * Write a collection of streams to the given file.
+ * @param filename Path to a file to write out.
+ * @param streams A stream collection object.
+ */
+void write_streams_to_binary(const char* filename, const stream_collection_t* streams);
 
 #endif

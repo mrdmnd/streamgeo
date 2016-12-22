@@ -3,134 +3,69 @@
 
 #include <stdlib.h>
 #include <stdarg.h>
-#include <stdint.h>
-
-/*
- A strided mask is a sparse binary matrix of very specific form:
- This is the form of the "search window" for dynamic timewarping during the "expand cells" phase.
- 1) All rows consist of a single "run" of "on" values.
- 2) The first index that is set "on" in a row is at least as large as the starting "on" index in the previous row.
- 3) The last index that is set "on" in a row is at least as large as the ending "on" index in the previous row.
-
- Example valid matrices (* = filled, . = unfilled)
-
-  0 1 2 3 4 5
-0 * * * . . .
-1 . * * * . .
-2 . * * * . .
-3 . . * * * *
-4 . . * * * *
-
-  0 1 2 3 4 5
-0 * * * * . .
-1 . * * * * .
-2 . . * * * .
-3 . . . . * *
-4 . . . . . *
-
-  0 1 2 3 4 5
-0 * * . . . .
-1 . * . . . .
-2 . . * * * .
-3 . . . . . *
-4 . . . . . *
-
- typedef struct {
-   size_t start;
-   size_t end;
- } pair;
-
-
- Example invalid matrices:
-
-  0 1 2 3 4 5
-0 * * * . * * <-- more than one continuous run
-1 . * * * . .
-2 . * * * . .
-3 . . * * * *
-4 . . * * * *
-
-  0 1 2 3 4 5
-0 * * * . . .
-1 . * * * . .
-2 . * * * . .
-3 * * * * * * <-- start index not monotonically increasing
-4 . . * * * *
-
-
-  0 1 2 3 4 5
-0 * * * . . .
-1 . * * * * .
-2 . * * * . . <-- end index not monotonically increasing
-3 . . * * * *
-4 . . * * * *
-
-
------------
-
- Let's examine the first case:
-
-  0 1 2 3 4 5
-0 * * * . . . <-- start at col 0, end at col 2
-1 . * * * . . <-- start at col 1, end at col 3
-2 . * * * . . <-- start at col 1, end at col 3
-3 . . * * * *
-4 . . * * * *
-
-*/
-
-
-typedef struct strided_mask_s {
-    size_t n_rows;
-    size_t n_cols;
-    size_t* start_cols;
-    size_t* end_cols;
-} strided_mask_t;
-
-/*
- * TODO: revisit if it makes sense to have separate arrays for start and end cols
- * I could see it being more cache-coherent to pack them one-after-another in a single array;
- * When we want a start index, we always want the end index, and having it right next to the start in memory
- * will nearly guarantee they're in the same cache line.
- * BENCHMARK later.
- */
-
-
 
 /**
- * Creates a new empty strided_mask object with n_rows and n_cols.
- * Allocates memory, caller must handle cleanup.
- * @param n_rows
- * @param n_cols
- * @return An unpopulated strided mask.
- */
-strided_mask_t* strided_mask_create(const size_t n_rows, const size_t n_cols);
-
-/**
- * Creates a strided mask object from a list of start, end column indices
- * @param n_rows
- * @param n_cols
- * First n_rows var-args are start_cols, next n_rows var-args are end_cols
- * .return
- */
-strided_mask_t* strided_mask_create_from_list(const size_t n_rows, const size_t n_cols, ...);
-
-/**
- * Destroys the input mask object and frees its memory
- * @param mask
- */
-void strided_mask_destroy(const strided_mask_t* mask);
-
-/**
- * Prints the input mask object.
- * @param mask
- */
-void strided_mask_printf(const strided_mask_t* mask);
-
-
-/**
- * A path_mask is a special kind of strided mask where the rows overlap by no more than one star,
- * and the upper left and lower right corner are filled.
+ * A strided mask is a sparse binary matrix with specific structural constraints on allowed element configurations.
+ * It is used for two primary purposes in this library:
+ *   1) It is used to represent "search windows" for windowed dynamic timewarping.
+ *   2) It is used to represent "warp paths", the result of a dynamic timewarp computation.
+ * When used in form (2) (a "path-mask"), there are additional structural constraints -- see further documentation.
+ *
+ * Strided masks require the following conditions to hold:
+ * 1) All rows must consist of a single "run" of toggled "on" values.
+ * 2) The index of the first column that is set "on" in a row is at least as large as the index of the first column in the previous row.
+ * 3) The index of the last column that is set "on" in a row is at least as large as the index of the last column in the previous row.
+ *
+ * Example valid matrices (* = filled, . = unfilled)
+ *
+ *    0 1 2 3 4 5
+ *  0 * * * . . .
+ *  1 . * * * . .
+ *  2 . * * * . .
+ *  3 . . * * * *
+ *  4 . . * * * *
+ *
+ *    0 1 2 3 4 5
+ *  0 * * * * . .
+ *  1 . * * * * .
+ *  2 . . * * * .
+ *  3 . . . . * *
+ *  4 . . . . . *
+ *
+ *    0 1 2 3 4 5
+ *  0 * * . . . .
+ *  1 . * . . . .
+ *  2 . . * * * .
+ *  3 . . . . . *
+ *  4 . . . . . *
+ *
+ * Example invalid matrices:
+ *
+ *    0 1 2 3 4 5
+ *  0 * * * . * * <-- more than one continuous run
+ *  1 . * * * . .
+ *  2 . * * * . .
+ *  3 . . * * * *
+ *  4 . . * * * *
+ *
+ *    0 1 2 3 4 5
+ *  0 * * * . . .
+ *  1 . * * * . .
+ *  2 . * * * . .
+ *  3 * * * * * * <-- start index not monotonically increasing
+ *  4 . . * * * *
+ *
+ *    0 1 2 3 4 5
+ *  0 * * * . . .
+ *  1 . * * * * .
+ *  2 . * * * . . <-- end index not monotonically increasing
+ *  3 . . * * * *
+ *  4 . . * * * *
+ *
+ * A path_mask is a special kind of strided mask where
+ * 1) start_cols[0] = 0
+ * 2) end_cols[n_rows-1] = n_cols-1t
+ * 3) end_cols[i-1] <= start_cols[i] <= end_cols[i-1] + 1 for all rows i
  *
  * VALID
  *   0 1 2 3 4 5
@@ -155,31 +90,67 @@ void strided_mask_printf(const strided_mask_t* mask);
  * 2 . * . . . .
  * 3 . * * * . .
  * 4 . . * * * *
- *
+ */
+
+typedef struct strided_mask_s {
+    size_t n_rows;
+    size_t n_cols;
+    size_t* start_cols;
+    size_t* end_cols;
+} strided_mask_t;
+
+
+/**
+ * Creates a new empty strided_mask object with n_rows and n_cols.
+ * Allocates memory, caller must handle cleanup.
+ * @param n_rows
+ * @param n_cols
+ * @return An unpopulated strided mask object.
+ */
+strided_mask_t* strided_mask_create(const size_t n_rows, const size_t n_cols);
+
+
+/**
+ * Creates a strided mask object from a list of start, end column indices
+ * Allocates memory, caller must handle cleanup.
+ * @param n_rows
+ * @param n_cols
+ * @param ... Input data; first n_rows of var-args are start_cols, next n_rows of var-args are end_cols
+ * @return A populated strided mask object.
+ */
+strided_mask_t* strided_mask_create_from_list(const size_t n_rows, const size_t n_cols, ...);
+
+
+/**
+ * Destroys the input mask object and frees its memory
+ * @param mask
+ */
+void strided_mask_destroy(const strided_mask_t* mask);
+
+
+/**
+ * Prints the input mask object.
+ * @param mask
+ */
+void strided_mask_printf(const strided_mask_t* mask);
+
+
+/**
  * This function converts a (presumed) valid path mask to a sequence of index pairs
  * Also sets the value of path length to the number of points in the path.
- * Caller is responsible for cleaning up the memory returned.
+ * Allocates memory; caller must handle cleanup.
+ * @param mask Input math
+ * @param path_length Set via side-effects.
+ * @return An array of [i_0, j_0, i_1, j_1, ... i_PL-1, j_PL-1] indices into streams i and j that were used to build the mask.
  */
 size_t* strided_mask_to_index_pairs(const strided_mask_t* mask, size_t* path_length);
 
-size_t strided_mask_path_length(const strided_mask_t* mask);
 
 /**
- * Build a strided mask object (a path mask) from a path.
- * Assumption is that path goes from upper left to lower right corner.
- * @param index_pairs
- * @param path_length
- * @return
- */
-strided_mask_t* strided_mask_from_index_pairs(const size_t* index_pairs, const size_t path_length);
-
-/**
- *
- * Upsamples the mask by a factor of two, then dilates the new cells by `radius` in each direction.
- * Returns a new mask; caller responsible for cleanup.
- * Example of r=1 dilation can be found at
- * https://www.dropbox.com/s/c8tqctwxyi80uub/Screenshot%202016-12-13%2015.40.53.png?dl=0
- * Worked example:
+ * Upsamples the input mask by a factor of two. If row_parity or col_parity are set to 1, then we add a row (or col).
+ * Finally, dilate the new cells by `radius` in each direction.
+ * Allocates and returns a new mask; caller responsible for cleanup.
+ * Worked example, with row_parity = 0 and col_parity = 0:
  * Input:
  *
  *   0 1 2 3 4 5
@@ -201,6 +172,8 @@ strided_mask_t* strided_mask_from_index_pairs(const size_t* index_pairs, const s
  * 7 . . . . * * * * . . . .
  * 8 . . . . * * * * * * . .
  * 9 . . . . * * * * * * . .
+ *
+ * We see row and col parity are set to zero, so we don't need to add another row (or col) at the bottom (or right)
  *
  * Next, that upsampled mask is dilated by a square structuring element parameterized by "radius"
  * Dilation works logically like this:

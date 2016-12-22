@@ -1,8 +1,8 @@
-#include <stdio.h>
-#include <time.h>
-
 #include <cstreamgeo/cstreamgeo.h>
 #include <cstreamgeo/stridedmask.h>
+#include <stdio.h>
+#include <math.h>
+#include <time.h>
 
 void full_random_alignment_benchmark(const size_t u_n, const size_t v_n, const size_t iterations) {
     time_t seed = time(NULL);

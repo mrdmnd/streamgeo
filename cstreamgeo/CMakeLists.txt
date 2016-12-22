@@ -32,8 +32,8 @@ set(TEST_DATA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tests/testdata/")
 set(BENCHMARK_DATA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/realdata/")
 message(STATUS "Using TEST_DATA_DIR: " ${TEST_DATA_DIR})
 message(STATUS "Using BENCHMARK_DATA_DIR: " ${BENCHMARK_DATA_DIR})
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/tests/config.h.in"
-        "${CMAKE_CURRENT_SOURCE_DIR}/tests/config.h")
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/tests/config.h.in" "${CMAKE_CURRENT_SOURCE_DIR}/tests/config.h")
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/config.h.in" "${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/config.h")
 
 add_subdirectory(src)
 add_subdirectory(benchmarks)

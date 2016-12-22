@@ -1,6 +1,9 @@
 #include <cstreamgeo/cstreamgeo.h>
 #include <cstreamgeo/stridedmask.h>
+#include <cstreamgeo/utilc.h>
 #include <limits.h>
+#include <float.h>
+#include <math.h>
 
 #define PI 3.1415926535f
 
@@ -30,6 +33,7 @@ typedef union {
     } parts;
 } unpacked_float_t;
 
+/* OPEN QUESTION: DOES IT MAKE SENSE TO DO A BOUNDARY EDGE ON LEFT/UP EDGE TO SAVE CONDITIONAL BRANCHING? */
 warp_info_t* _full_dtw(const stream_t* restrict a, const stream_t* restrict b) {
     const float* a_data = a->data;
     const float* b_data = b->data;

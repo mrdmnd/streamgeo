@@ -1,5 +1,10 @@
 #include <cstreamgeo/cstreamgeo.h>
 #include <stdbool.h>
+#include <stdlib.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <math.h>
+#include <assert.h>
 
 /**
  * General functions for interacting with a single stream.
@@ -42,13 +47,6 @@ void stream_printf(const stream_t* stream) {
     printf("]\n");
 }
 
-
-/**
- * Returns the length of a stream in degrees (note: not meters)
- * @param s_n Number of points in the stream
- * @param s Stream data buffer
- * @return Length of the stream in degrees
- */
 float stream_distance(const stream_t* stream) {
     const size_t s_n = stream->n;
     const float* data = stream->data;
@@ -64,18 +62,6 @@ float stream_distance(const stream_t* stream) {
     return sum;
 }
 
-
-/**
- * For each point in the stream buffer, compute the summed distance from that point to both neighbors --
- * the first and last point in the buffer count their neighbor twice.
- * Take the summed distance and normalize by 2 * optimal_spacing - the distance that each point would be from each
- * other point if the stream were perfectly spaced.
- * This procedure assigns a value [0, \infty) to each point.
- * Convert this domain into the range [0, 1] by passing the values x through 1- 2*atan(x)/pi.
- * @param s_n Number of points in the stream
- * @param s Stream buffer data
- * @return Outputs sparsity data. Assumed to have s_n points. Allocates memory. Caller must clean up.
- */
 float* stream_sparsity(const stream_t* stream) {
     const size_t s_n = stream->n;
     const float* data = stream->data;
@@ -101,7 +87,7 @@ float* stream_sparsity(const stream_t* stream) {
     return sparsity;
 }
 
-void stream_printf_statistics(const stream_t* stream) {
+void stream_statistics_printf(const stream_t* stream) {
     const size_t n = stream->n;
     const float distance = stream_distance(stream);
     const float* sparsity = stream_sparsity(stream);
@@ -113,30 +99,12 @@ void stream_printf_statistics(const stream_t* stream) {
     free((void*) sparsity);
 }
 
-/**
- * Computes the distance from a point to a line (defined by a start and end point), in two dimensions.
- * @param px Test point x
- * @param py Test point y
- * @param sx Start point x
- * @param sy Start point y
- * @param ex End point x
- * @param ey End point y
- * @return Distance between point p and line (s, e)
- */
 float _point_line_distance(float px, float py, float sx, float sy, float ex, float ey) {
     return (sx == ex && sy == ey) ?
            (px - sx) * (px - sx) + (py - sy) * (py - sy) :
            fabsf((ex - sx) * (sy - py) - (sx - px) * (ey - sy)) / sqrtf((ex - sx) * (ex - sx) + (ey - sy) * (ey - sy));
 }
 
-/**
- * Performs polyline simplification and identifies the indices to keep from a data buffer of points.
- * @param input Stream to simplify
- * @param start Start index to search from
- * @param end End index to stop searching at
- * @param epsilon Threshold for keeping points (keep if they exceed epsilon distance from line segment bound)
- * @param indices Output object containing indices of keep points.
- */
 void _douglas_peucker(const stream_t* input, const size_t start, const size_t end, const float epsilon, bool* indices) {
     const float* input_data = input->data;
 
@@ -169,13 +137,8 @@ void _douglas_peucker(const stream_t* input, const size_t start, const size_t en
     }
 }
 
-/**
- * Wrapper around _douglas_peucker to be called externally
- * @param input Input stream
- * @param epsilon Threshold for keeping points (keep if they exceed epsilon distance)
- * @return simplified stream
- */
-stream_t* downsample_ramer_douglas_peucker(const stream_t* input, const float epsilon) {
+
+const stream_t* downsample_ramer_douglas_peucker(const stream_t* input, const float epsilon) {
     const size_t input_n = input->n;
     const float* input_data = input->data;
 
@@ -204,4 +167,14 @@ stream_t* downsample_ramer_douglas_peucker(const stream_t* input, const float ep
     }
     free(indices);
     return output;
+}
+
+const stream_t* downsample_radial_distance(const stream_t* input, const float epsilon) {
+    printf("NOT YET IMPLEMENTED\n");
+    return NULL;
+}
+
+const stream_t* resample_fixed_factor(const stream_t* input, const size_t n, const size_t m) {
+    printf("NOT YET IMPLEMENTED\n");
+    return NULL;
 }
