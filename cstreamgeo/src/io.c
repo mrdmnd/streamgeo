@@ -3,7 +3,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-
+#include <stddef.h>
+#include <sys/types.h>
 
 stream_collection_t* stream_collection_create(const size_t n) {
     stream_collection_t* streams = malloc(sizeof(stream_collection_t));
