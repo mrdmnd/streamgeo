@@ -44,6 +44,7 @@
 *.DS_Store
 
 cstreamgeo/tests/config.h
+cstreamgeo/benchmarks/config.h
 
 .idea/
 .idea
