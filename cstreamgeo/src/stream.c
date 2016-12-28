@@ -138,7 +138,7 @@ void _douglas_peucker(const stream_t* input, const size_t start, const size_t en
 }
 
 
-const stream_t* downsample_ramer_douglas_peucker(const stream_t* input, const float epsilon) {
+stream_t* downsample_ramer_douglas_peucker(const stream_t* input, const float epsilon) {
     const size_t input_n = input->n;
     const float* input_data = input->data;
 
@@ -169,12 +169,12 @@ const stream_t* downsample_ramer_douglas_peucker(const stream_t* input, const fl
     return output;
 }
 
-const stream_t* downsample_radial_distance(const stream_t* input, const float epsilon) {
+stream_t* downsample_radial_distance(const stream_t* input, const float epsilon) {
     printf("NOT YET IMPLEMENTED\n");
     return NULL;
 }
 
-const stream_t* resample_fixed_factor(const stream_t* input, const size_t n, const size_t m) {
+stream_t* resample_fixed_factor(const stream_t* input, const size_t n, const size_t m) {
     printf("NOT YET IMPLEMENTED\n");
     return NULL;
 }

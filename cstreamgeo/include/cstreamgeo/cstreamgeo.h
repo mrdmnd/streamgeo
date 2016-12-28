@@ -2,6 +2,7 @@
 #define CSTREAMGEO_H
 
 #include <stddef.h>
+#include <stdbool.h>
 
 /* ---------------- Core data structure types ---------------- */
 
@@ -136,7 +137,7 @@ float redmond_similarity(const stream_t* a, const stream_t* b, const size_t radi
  * @param epsilon Threshold for keeping points (points kept if distance exceeds epsilon)
  * @return Downsampled stream
  */
-const stream_t* downsample_ramer_douglas_peucker(const stream_t* input, const float epsilon);
+stream_t* downsample_ramer_douglas_peucker(const stream_t* input, const float epsilon);
 
 
 /**
@@ -147,7 +148,7 @@ const stream_t* downsample_ramer_douglas_peucker(const stream_t* input, const fl
  * @param epsilon Threshold for keeping points (points kept if distance exceeds epsilon)
  * @return Downsampled stream
  */
-const stream_t* downsample_radial_distance(const stream_t* input, const float epsilon);
+stream_t* downsample_radial_distance(const stream_t* input, const float epsilon);
 
 
 /**
@@ -159,7 +160,7 @@ const stream_t* downsample_radial_distance(const stream_t* input, const float ep
  * @param n Downsampling factor
  * @return Resampled stream
  */
-const stream_t* resample_fixed_factor(const stream_t* input, const size_t M, const size_t N);
+stream_t* resample_fixed_factor(const stream_t* input, const size_t M, const size_t N);
 
 /* ---------------- Operations on Stream Collections ---------------- */
 
@@ -171,7 +172,7 @@ const stream_t* resample_fixed_factor(const stream_t* input, const size_t M, con
  *        If "approx" flag is set, computes alignment with radius set to ceil(max(stream_length)^(0.25))
  * @return An index into the stream_collection_t that selects the (previously existing) "most representative" element from the stream collection.
  */
-const size_t medoid_consensus(const stream_collection_t* input, const bool approximate);
+size_t medoid_consensus(const stream_collection_t* input, const bool approximate);
 
 
 /**
@@ -181,6 +182,6 @@ const size_t medoid_consensus(const stream_collection_t* input, const bool appro
  *        If "approx" flag is set, computes alignment with radius set to ceil(max(stream_length)^(0.25))
  * @return A stream_t object that represents a (newly synthesized) "most representative" element from the stream collection.
  */
-const stream_t* dba_consensus(const stream_collection_t* input, const bool approximate);
+stream_t* dba_consensus(const stream_collection_t* input, const bool approximate);
 
 #endif

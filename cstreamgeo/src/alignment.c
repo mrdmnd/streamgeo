@@ -4,6 +4,7 @@
 #include <limits.h>
 #include <float.h>
 #include <math.h>
+#include <stdio.h>
 #include <stdbool.h>
 
 #define PI 3.1415926535f
@@ -350,7 +351,7 @@ float redmond_similarity(const stream_t* a, const stream_t* b, const size_t radi
     return (float) (1.0 - total_weight_error / total_weight);
 }
 
-const size_t medoid_consensus(const stream_collection_t* input, const bool approximate) {
+size_t medoid_consensus(const stream_collection_t* input, const bool approximate) {
     float cost_matrix[input->n][input->n];
 
     // Populate cost matrix
@@ -412,6 +413,7 @@ const size_t medoid_consensus(const stream_collection_t* input, const bool appro
     return best_index;
 }
 
-const stream_t* dba_consensus(const stream_collection_t* input, const bool approximate) {
-
+stream_t* dba_consensus(const stream_collection_t* input, const bool approximate) {
+    printf("NOT YET IMPLEMENTED\n");
+    return NULL;
 }
