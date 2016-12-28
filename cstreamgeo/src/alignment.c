@@ -4,6 +4,7 @@
 #include <limits.h>
 #include <float.h>
 #include <math.h>
+#include <stdbool.h>
 
 #define PI 3.1415926535f
 
@@ -20,10 +21,10 @@ void warp_info_destroy(const warp_info_t* warp) {
 
 }
 
-// TERRIBLE SCARY FLOATING POINT HACKERY AHEAD
+// THERE EXISTS SOME TERRIBLE SCARY FLOATING POINT HACKERY AHEAD
 // We store *step-direction* in the low bits of the mantissa - this is a space/accuracy trade off.
 // 11 means "diag", 10 means "up", 01 means "left"
-// and-ing with ~0x0003 (00 mask) lets us recover the true cost from the dp table
+// bitwise AND with ~0x0003 (11111111111111100 mask) lets us recover the true cost from the dp table.
 typedef union {
     float f;
     struct {
@@ -207,18 +208,6 @@ warp_info_t* _windowed_dtw(const stream_t* restrict a, const stream_t* restrict 
     return warp_info;
 }
 
-
-/**
- * Downsamples a stream by a factor of two, averaging consecutive points.
- * Truncates stream to a multiple of four points, so that upon downsampling, we are left with an even-length stream
- * Allocates memory. Caller must clean up.
- *
- * [a, b, c, d, e, f] --> [(a+b)/2, (c+d)/2, (e+f)/2]
- * [a, b, c, d, e, f, g] --> [(a+b)/2, (c+d)/2, (e+f)/2]
- * @param input_n Number of points in input buffer
- * @param input Data buffer containing original stream
- * @param output Data buffer containing down-sampled stream
- */
 stream_t* _reduce_by_half(const stream_t* input) {
     const size_t input_n = input->n;
     const float* input_data = input->data;
@@ -240,26 +229,6 @@ stream_t* _reduce_by_half(const stream_t* input) {
     }
     return shrunk_stream;
 }
-
-/**
- * A method that computes the dynamic time warp alignment between two streams `a` and `b` using the
- * approximate algorithm fast_dtw. At a high level, this algorithm works by recursively
- *   - Base case: small stream size; compute explicit DTW
- *   - Recursive case:
- *     a) Downsample each stream by a factor of two
- *     b) Call fast_dtw recursively on the downsampled streams to get a shrunk alignment path
- *     c) Expand the shrunk alignment path by some radius into a new search window
- *        (this reprojects the alignment path back into the resolution of the original streams)
- *     d) Compute the optimal alignment with traditional DTW over the new search window
- *
- * @param a_n Number of points in the first stream
- * @param a Stream buffer for the first stream
- * @param b_n Number of points in the second stream
- * @param b Stream buffer for the second stream
- * @param radius Amount to extrude shrunk path by: set to one by default. Larger values are more exhaustive search.
- * @param path Output parameter containing optimal alignment path
- * @return Alignment cost of optimal alignment path
- */
 
 warp_info_t* _fast_dtw(const stream_t* a, const stream_t* b, const size_t radius) {
     const size_t a_n = a->n;
@@ -288,12 +257,6 @@ warp_info_t* _fast_dtw(const stream_t* a, const stream_t* b, const size_t radius
 
 /* ---------- TOP LEVEL FUNCTIONS, EXPOSED TO API ----------- */
 
-/**
- * A top level function to compute the optimal warp-path alignment sequence between streams a and b.
- * @param a First stream
- * @param b Second stream
- * @return A warp_summary structure containing the cost, as well as the warp path.
- */
 warp_summary_t* full_align(const stream_t* a, const stream_t* b) {
     const warp_info_t* warp_info = _full_dtw(a, b);
     warp_summary_t* final_warp = malloc(sizeof(warp_summary_t));
@@ -306,13 +269,6 @@ warp_summary_t* full_align(const stream_t* a, const stream_t* b) {
     return final_warp;
 }
 
-/**
- * A top level function to compute the (approximately) optimal warp-path alignment sequence between streams a and b.
- * @param a First stream
- * @param b Second stream
- * @param radius Parameter controlling level of approximation. Larger values are slower but more comprehensive.
- * @return A warp_summary structure containing the (approximate) cost, as well as the best approximation to the warp path.
- */
 
 warp_summary_t* fast_align(const stream_t* a, const stream_t* b, const size_t radius) {
     warp_info_t* warp_info = _fast_dtw(a, b, radius);
@@ -326,20 +282,6 @@ warp_summary_t* fast_align(const stream_t* a, const stream_t* b, const size_t ra
     return final_warp;
 }
 
-/**
- * A top level, short-circuiting function that establishes a distance metric on stream data.
- * Returns values in the range [0.0, 1.0] - 0.0 means totally dissimilar, 1.0 means identical.
- * Algorithm for similarity checks easiest "fail" cases first, for efficiency:
- *   a) if streams have very different distance ratios (2.5x), return 0.0
- *   b) if stream start/mid/endpoints are further apart than 30% of min distance, return 0.0
- *   c) otherwise, compute sparsity of each stream to get a weight for each point, and run the _iterative_similarity() method above
- * @param a_n Number of points in the first stream
- * @param a Stream buffer for the first stream
- * @param b_n Number of points in the second stream
- * @param b Stream buffer for the second stream
- * @param radius Extrusion radius for alignment computation
- * @return Computed similarity between two streams, between zero and one.
- */
 float redmond_similarity(const stream_t* a, const stream_t* b, const size_t radius) {
     const size_t a_n = a->n;
     const float* a_data = a->data;
@@ -406,4 +348,70 @@ float redmond_similarity(const stream_t* a, const stream_t* b, const size_t radi
     free(b_sparsity);
 
     return (float) (1.0 - total_weight_error / total_weight);
+}
+
+const size_t medoid_consensus(const stream_collection_t* input, const bool approximate) {
+    float cost_matrix[input->n][input->n];
+
+    // Populate cost matrix
+    stream_t* first;
+    stream_t* second;
+    if (approximate) {
+        size_t radius = 0;
+        for (size_t i = 0; i < input->n; i++) {
+            radius = MAX(radius, (size_t)ceilf( powf(input->data[i]->n, 0.25) ));
+        }
+
+        for (size_t i = 0; i < input->n; i++) {
+            first = input->data[i];
+            for (size_t j = 0; j <= i; j++) { // TODO: check if this is a bug; and if we want j < i as the test
+                second = input->data[j];
+                if (i == j) {
+                    cost_matrix[i][j] = 0.0;
+                } else {
+                    warp_summary_t* warp_summary = full_align(first, second);
+                    cost_matrix[i][j] = warp_summary->cost;
+                    cost_matrix[j][i] = warp_summary->cost;
+                    // TODO: make it so that fast_align doesn't allocate memory, but populates a passed in pointer? These are unnecessary FREEs.
+                    free(warp_summary->index_pairs);
+                    free((void*) warp_summary);
+                }
+            }
+        }
+    } else {
+        for (size_t i = 0; i < input->n; i++) {
+            first = input->data[i];
+            for (size_t j = 0; j <= i; j++) {
+                second = input->data[j];
+                if (i == j) {
+                    cost_matrix[i][j] = 0.0;
+                } else {
+                    warp_summary_t* warp_summary = full_align(first, second);
+                    cost_matrix[i][j] = warp_summary->cost;
+                    cost_matrix[j][i] = warp_summary->cost;
+                    free(warp_summary->index_pairs);
+                    free((void*) warp_summary);
+                }
+            }
+        }
+    }
+
+    // Compute the optimal index.
+    size_t best_index = 0;
+    float best_cost = FLT_MAX;
+    for (size_t i = 0; i < input->n; i++) {
+        float accum = 0;
+        for (size_t j = 0; j < input->n; j++) {
+            accum += cost_matrix[i][j];
+        }
+        if (accum < best_cost) {
+            best_cost = accum;
+            best_index = i;
+        }
+    }
+    return best_index;
+}
+
+const stream_t* dba_consensus(const stream_collection_t* input, const bool approximate) {
+
 }

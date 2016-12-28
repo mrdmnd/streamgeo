@@ -15,7 +15,6 @@ typedef struct stream_collection_s {
     size_t n;            // Number of streams in the collection
 } stream_collection_t;
 
-
 typedef struct warp_summary_s {
     size_t* index_pairs; // Indices: [row_0, col_0, row_1, col_1, ..., row_N-1, col_N-1]
     size_t path_length;  // Number of *POINTS* in the warp path. The number of elts in `index_pairs` is 2x this value.
@@ -160,6 +159,28 @@ const stream_t* downsample_radial_distance(const stream_t* input, const float ep
  * @param n Downsampling factor
  * @return Resampled stream
  */
-const stream_t* resample_fixed_factor(const stream_t* input, const size_t M, const size_t N);  // TODO - NYI
+const stream_t* resample_fixed_factor(const stream_t* input, const size_t M, const size_t N);
+
+/* ---------------- Operations on Stream Collections ---------------- */
+
+
+/**
+ * Computes the index of the "most median" element of a stream collection.
+ * @param input Pointer to a stream collection
+ * @param approximate Flag to use fast_dtw instead of full_dtw.
+ *        If "approx" flag is set, computes alignment with radius set to ceil(max(stream_length)^(0.25))
+ * @return An index into the stream_collection_t that selects the (previously existing) "most representative" element from the stream collection.
+ */
+const size_t medoid_consensus(const stream_collection_t* input, const bool approximate);
+
+
+/**
+ * Allocates space for, constructs, and returns a pointer to a synthetic "optimal element" for a
+ * @param input Pointer to a stream collection
+ * @param approxmiate Flag to use fast_dtw instead of full_dtw.
+ *        If "approx" flag is set, computes alignment with radius set to ceil(max(stream_length)^(0.25))
+ * @return A stream_t object that represents a (newly synthesized) "most representative" element from the stream collection.
+ */
+const stream_t* dba_consensus(const stream_collection_t* input, const bool approximate);
 
 #endif
