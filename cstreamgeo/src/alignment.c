@@ -6,6 +6,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <string.h>
 
 #define PI 3.1415926535f
 
@@ -34,6 +35,42 @@ typedef union {
         unsigned int sign : 1;
     } parts;
 } unpacked_float_t;
+
+// A method that only returns the *COST* of the alignment (full) -- saves on space if we don't need the path.
+float full_dtw_cost(const stream_t* restrict a, const stream_t* restrict b) {
+    const float* a_data = a->data;
+    const float* b_data = b->data;
+    const size_t a_n = a->n;
+    const size_t b_n = b->n;
+    float prev_costs[b_n+1];
+    float curr_costs[b_n+1];
+    for (size_t col = 0; col <= b_n; col++) {
+        prev_costs[col] = FLT_MAX;
+    }
+    prev_costs[0] = 0;
+    float lat_diff, lng_diff, dt;
+    float diag_cost, up_cost, left_cost;
+    for (size_t row = 0; row < a_n; row++) {
+        curr_costs[0] = FLT_MAX;
+        for (size_t col = 0; col < b_n; col++) {
+            lat_diff = b_data[2*col + 0] - a_data[2*row + 0];
+            lng_diff = b_data[2*col + 1] - a_data[2*row + 1];
+            dt =  (lng_diff * lng_diff) + (lat_diff * lat_diff);
+            diag_cost = prev_costs[col];
+            up_cost   = prev_costs[col+1];
+            left_cost = curr_costs[col];
+            if (diag_cost <= up_cost && diag_cost <= left_cost) {
+                curr_costs[col+1] = dt + diag_cost;
+            } else if (up_cost <= left_cost) {
+                curr_costs[col+1] = dt + up_cost;
+            } else {
+                curr_costs[col+1] = dt + left_cost;
+            }
+        }
+        memcpy(&prev_costs, &curr_costs, (b_n+1)*sizeof(float));
+    }
+    return curr_costs[b_n];
+}
 
 /* OPEN QUESTION: DOES IT MAKE SENSE TO DO A BOUNDARY EDGE ON LEFT/UP EDGE TO SAVE CONDITIONAL BRANCHING? */
 warp_info_t* _full_dtw(const stream_t* restrict a, const stream_t* restrict b) {

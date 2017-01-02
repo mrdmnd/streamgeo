@@ -91,6 +91,17 @@ float* stream_sparsity(const stream_t* stream);
 
 
 /**
+ * Returns the COST of the optimal alignment of stream `a` to stream `b`, but not the path.
+ * Uses an approach that is O(M*N) in TIME but only O(max(M, N)) in space - we can get away
+ * with storing only the previous columns and the current columns if we do not care about tracking
+ * where we came from. In practice, this is 30% faster than computing the alignment.
+ * @param a First input stream
+ * @param b Second input stream
+ * @return The cost of aligning the two streams
+ */
+float full_dtw_cost(const stream_t* a, const stream_t* b);
+
+/**
  * Returns the optimal alignment of stream `a` to stream `b`.
  * Uses the full O(M*N) dynamic timewarping algorithm.
  * Allocates memory for returned warp_summary object; caller is responsible for cleanup.

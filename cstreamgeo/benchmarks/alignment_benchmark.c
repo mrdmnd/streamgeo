@@ -3,11 +3,13 @@
 #include <stdio.h>
 #include <math.h>
 #include <time.h>
+#include <assert.h>
 
 void full_random_alignment_benchmark(const size_t u_n, const size_t v_n, const size_t iterations) {
     time_t seed = time(NULL);
     srand(seed);
-    double time_accumulator = 0;
+    double time_accumulator_1 = 0;
+    double time_accumulator_2 = 0;
     for (size_t j = 0; j < iterations; j++) {
         //printf("Seed is %zu\n", seed);
 
@@ -29,17 +31,26 @@ void full_random_alignment_benchmark(const size_t u_n, const size_t v_n, const s
         start = clock();
         warp_summary_t* warp_summary = full_align(u, v);
         end = clock();
-        free(warp_summary->index_pairs); // BROKEN
-        free((void*) warp_summary);
-        time_accumulator += ((double) (end - start)) / CLOCKS_PER_SEC;
+        time_accumulator_1 += ((double) (end - start)) / CLOCKS_PER_SEC;
+        start = clock();
+        float warp_cost = full_dtw_cost(u, v);
+        end = clock();
+        time_accumulator_2 += ((double) (end - start)) / CLOCKS_PER_SEC;
 
+        //assert(warp_cost == warp_summary->cost);
+
+        free(warp_summary->index_pairs);
+        free((void*) warp_summary);
         stream_destroy(u);
         stream_destroy(v);
     }
-    printf("%zu iterations of %zu by %zu full time warp with path took %f millis, average=%f\n",
+    printf("%zu iterations of %zu by %zu full time warp took %f millis with path, %f millis without, averages=%f, %f\n",
            iterations, u_n, v_n,
-           1000.0*time_accumulator,
-           (1000.0*time_accumulator) / iterations);
+           1000.0*time_accumulator_1,
+           1000.0*time_accumulator_2,
+           (1000.0*time_accumulator_1) / iterations,
+           (1000.0*time_accumulator_2) / iterations);
+
 }
 
 void fast_random_alignment_benchmark(const size_t u_n, const size_t v_n, const size_t radius, const size_t iterations) {
@@ -68,7 +79,7 @@ void fast_random_alignment_benchmark(const size_t u_n, const size_t v_n, const s
         start = clock();
         warp_summary_t* warp_summary = fast_align(u, v, radius); // Don't care about the results here; just the computation.
         end = clock();
-        printf("Warp summary: %zu points, %f cost\n", warp_summary->path_length, warp_summary->cost);
+        //printf("Warp summary: %zu points, %f cost\n", warp_summary->path_length, warp_summary->cost);
         free(warp_summary->index_pairs);
         free((void*) warp_summary);
         time_accumulator += ((double) (end - start)) / CLOCKS_PER_SEC;
@@ -76,8 +87,8 @@ void fast_random_alignment_benchmark(const size_t u_n, const size_t v_n, const s
         stream_destroy(u);
         stream_destroy(v);
     }
-    printf("%zu iterations of %zu by %zu fast time warp with path took %f millis, average=%f\n",
-           iterations, u_n, v_n,
+    printf("%zu iterations of %zu by %zu fast time warp (radius %zu) with path took %f millis, average=%f\n",
+           iterations, u_n, v_n, radius,
            1000.0*time_accumulator,
            (1000.0*time_accumulator) / iterations);
 }
@@ -130,8 +141,8 @@ void accuracy_benchmark(const size_t u_n, const size_t v_n, const size_t radius_
 }
 
 int main() {
-    //full_random_alignment_benchmark(4000, 4000, 10);
-    //fast_random_alignment_benchmark(400, 400, 30, 5);
-    accuracy_benchmark(24000, 24000, 20);
+    full_random_alignment_benchmark(4000, 4000, 20);
+    fast_random_alignment_benchmark(4000, 4000, 8, 20);
+    //accuracy_benchmark(24000, 24000, 20);
 }
 
