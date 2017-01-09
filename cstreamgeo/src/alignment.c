@@ -253,17 +253,9 @@ stream_t* _reduce_by_half(const stream_t* input) {
     stream_t* shrunk_stream = stream_create(input_n / 2);
     float* shrunk_data = shrunk_stream->data;
 
-    float lat1, lng1, lat2, lng2;
-
-    for (size_t i = 0; i < input_n - 1; i++) {
-        lat1 = input_data[2 * i + 0];
-        lng1 = input_data[2 * i + 1];
-        lat2 = input_data[2 * i + 2];
-        lng2 = input_data[2 * i + 3];
-        if (i % 2 == 0) {
-            shrunk_data[i + 0] = 0.5f * (lat1 + lat2);
-            shrunk_data[i + 1] = 0.5f * (lng1 + lng2);
-        }
+    for (size_t i = 0; i < 2*(input_n / 2); i+=2) {
+        shrunk_data[i + 0] = 0.5f * (input_data[2 * i + 0] + input_data[2 * i + 2]);
+        shrunk_data[i + 1] = 0.5f * (input_data[2 * i + 1] + input_data[2 * i + 3]);
     }
     return shrunk_stream;
 }
