@@ -18,7 +18,7 @@ void full_align_test_small() {
     const size_t b_n = 3;
     const stream_t* a = stream_create_from_list(a_n, 0.0, 0.0, 2.0, 4.0, 4.0, 4.0, 6.0, 0.0);
     const stream_t* b = stream_create_from_list(b_n, 1.0, 0.0, 3.0, 3.5, 5.0, 0.0);
-    const warp_summary_t* warp_summary = full_align(a, b);
+    const warp_summary_t* warp_summary = full_warp_summary_create(a, b);
     warp_summary_printf(warp_summary);
 
     assert_int_equal(warp_summary->path_length, 4);
@@ -42,7 +42,7 @@ void fast_align_test_small() {
     const size_t radius = 4;
     const stream_t* a = stream_create_from_list(a_n, 0.0, 0.0, 2.0, 4.0, 4.0, 4.0, 6.0, 0.0);
     const stream_t* b = stream_create_from_list(b_n, 1.0, 0.0, 3.0, 3.5, 5.0, 0.0);
-    const warp_summary_t* warp_summary = fast_align(a, b, radius);
+    const warp_summary_t* warp_summary = fast_warp_summary_create(a, b, radius);
     warp_summary_printf(warp_summary);
 
     assert_int_equal(warp_summary->path_length, 4);

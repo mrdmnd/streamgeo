@@ -4,7 +4,9 @@
 #include <stddef.h>
 #include <stdbool.h>
 
+
 /* ---------------- Core data structure types ---------------- */
+
 
 typedef struct stream_s {
     float* data;         // Stream buffer [lat0, lng0, lat1, lng1, ..., latN-1, lngN-1]
@@ -21,6 +23,7 @@ typedef struct warp_summary_s {
     size_t path_length;  // Number of *POINTS* in the warp path. The number of elts in `index_pairs` is 2x this value.
     float cost;          // Result of aligning two streams.
 } warp_summary_t;
+
 
 /* ---------------- Stream Utility Functions ---------------- */
 
@@ -64,6 +67,7 @@ void stream_printf(const stream_t* stream);
  */
 void stream_statistics_printf(const stream_t* stream);
 
+
 /* ---------------- Stream Processing Routines ---------------- */
 
 
@@ -73,7 +77,6 @@ void stream_statistics_printf(const stream_t* stream);
  * @param stream
  */
 float stream_distance(const stream_t* stream);
-
 
 /**
  * Returns an array with "sparsity" values for each point in the stream.
@@ -87,7 +90,7 @@ float stream_distance(const stream_t* stream);
  * @param stream
  * @return Outputs sparsity data. Assumed to have s_n points. Allocates memory. Caller must clean up.
  */
-float* stream_sparsity(const stream_t* stream);
+float* stream_sparsity_create(const stream_t *stream);
 
 
 /**
@@ -109,7 +112,7 @@ float full_dtw_cost(const stream_t* a, const stream_t* b);
  * @param b Second input stream
  * @return A warp_summary object containing the warp path, number of points in the warp path, and cost of alignment.
  */
-warp_summary_t* full_align(const stream_t* a, const stream_t* b);
+warp_summary_t* full_warp_summary_create(const stream_t *a, const stream_t *b);
 
 
 /**
@@ -123,7 +126,7 @@ warp_summary_t* full_align(const stream_t* a, const stream_t* b);
  * @param b Second input stream
  * @return A warp_summary object containing the warp path, number of points in the warp path, and cost of alignment.
  */
-warp_summary_t* fast_align(const stream_t* a, const stream_t* b, const size_t radius);
+warp_summary_t* fast_warp_summary_create(const stream_t *a, const stream_t *b, const size_t radius);
 
 
 /**
@@ -136,7 +139,8 @@ warp_summary_t* fast_align(const stream_t* a, const stream_t* b, const size_t ra
  * @param b Second input stream
  * @return Value of similarity metric on the two input streams.
  */
-float redmond_similarity(const stream_t* a, const stream_t* b, const size_t radius);
+float similarity(const stream_t *a, const stream_t *b, const size_t radius);
+
 
 /* ---------------- Stream Resampling Routines ---------------- */
 
@@ -146,20 +150,18 @@ float redmond_similarity(const stream_t* a, const stream_t* b, const size_t radi
  * Allocates memory for simplified stream object; caller must clean up.
  * @param input Input stream
  * @param epsilon Threshold for keeping points (points kept if distance exceeds epsilon)
- * @return Downsampled stream
  */
-stream_t* downsample_ramer_douglas_peucker(const stream_t* input, const float epsilon);
+void downsample_rdp(stream_t *input, const float epsilon);
 
 
 /**
  * NOT YET IMPLEMENTED
  * Downsamples a stream quickly with O(n) radial-distance simplification.
- * Allocates memory for simplified stream object; caller must clean up.
  * @paramm input Stream to downsample
  * @param epsilon Threshold for keeping points (points kept if distance exceeds epsilon)
  * @return Downsampled stream
  */
-stream_t* downsample_radial_distance(const stream_t* input, const float epsilon);
+// stream_t* downsample_radial_distance(const stream_t* input, const float epsilon);
 
 
 /**
@@ -171,7 +173,8 @@ stream_t* downsample_radial_distance(const stream_t* input, const float epsilon)
  * @param n Downsampling factor
  * @return Resampled stream
  */
-stream_t* resample_fixed_factor(const stream_t* input, const size_t M, const size_t N);
+// stream_t* resample_fixed_factor(const stream_t* input, const size_t M, const size_t N);
+
 
 /* ---------------- Operations on Stream Collections ---------------- */
 

@@ -287,7 +287,7 @@ warp_info_t* _fast_dtw(const stream_t* a, const stream_t* b, const size_t radius
 
 /* ---------- TOP LEVEL FUNCTIONS, EXPOSED TO API ----------- */
 
-warp_summary_t* full_align(const stream_t* a, const stream_t* b) {
+warp_summary_t* full_warp_summary_create(const stream_t *a, const stream_t *b) {
     const warp_info_t* warp_info = _full_dtw(a, b);
     warp_summary_t* final_warp = malloc(sizeof(warp_summary_t));
     final_warp->cost = warp_info->warp_cost;
@@ -300,7 +300,7 @@ warp_summary_t* full_align(const stream_t* a, const stream_t* b) {
 }
 
 
-warp_summary_t* fast_align(const stream_t* a, const stream_t* b, const size_t radius) {
+warp_summary_t* fast_warp_summary_create(const stream_t *a, const stream_t *b, const size_t radius) {
     warp_info_t* warp_info = _fast_dtw(a, b, radius);
     warp_summary_t* final_warp = malloc(sizeof(warp_summary_t));
     final_warp->cost = warp_info->warp_cost;
@@ -312,7 +312,7 @@ warp_summary_t* fast_align(const stream_t* a, const stream_t* b, const size_t ra
     return final_warp;
 }
 
-float redmond_similarity(const stream_t* a, const stream_t* b, const size_t radius) {
+float similarity(const stream_t *a, const stream_t *b, const size_t radius) {
     const size_t a_n = a->n;
     const float* a_data = a->data;
     const size_t b_n = b->n;
@@ -344,10 +344,10 @@ float redmond_similarity(const stream_t* a, const stream_t* b, const size_t radi
     lng_diff = b_data[2 * (b_n - 1) + 1] - a_data[2 * (a_n - 1) + 1];
     if (sqrtf((lng_diff * lng_diff) + (lat_diff * lat_diff)) > min_distance) return 0.0;
 
-    float* a_sparsity = stream_sparsity(a);
-    float* b_sparsity = stream_sparsity(b);
+    float* a_sparsity = stream_sparsity_create(a);
+    float* b_sparsity = stream_sparsity_create(b);
 
-    const warp_summary_t* warp_summary = fast_align(a, b, radius);
+    const warp_summary_t* warp_summary = fast_warp_summary_create(a, b, radius);
     size_t path_length = warp_summary->path_length;
     size_t* warp_path = warp_summary->index_pairs;
 
@@ -399,10 +399,10 @@ size_t medoid_consensus(const stream_collection_t* input, const bool approximate
                 if (i == j) {
                     cost_matrix[i][j] = 0.0;
                 } else {
-                    warp_summary_t* warp_summary = full_align(first, second);
+                    warp_summary_t* warp_summary = full_warp_summary_create(first, second);
                     cost_matrix[i][j] = warp_summary->cost;
                     cost_matrix[j][i] = warp_summary->cost;
-                    // TODO: make it so that fast_align doesn't allocate memory, but populates a passed in pointer? These are unnecessary FREEs.
+                    // TODO: make it so that fast_warp_summary_create doesn't allocate memory, but populates a passed in pointer? These are unnecessary FREEs.
                     free(warp_summary->index_pairs);
                     free((void*) warp_summary);
                 }
@@ -416,7 +416,7 @@ size_t medoid_consensus(const stream_collection_t* input, const bool approximate
                 if (i == j) {
                     cost_matrix[i][j] = 0.0;
                 } else {
-                    warp_summary_t* warp_summary = full_align(first, second);
+                    warp_summary_t* warp_summary = full_warp_summary_create(first, second);
                     cost_matrix[i][j] = warp_summary->cost;
                     cost_matrix[j][i] = warp_summary->cost;
                     free(warp_summary->index_pairs);

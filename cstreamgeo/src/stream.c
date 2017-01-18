@@ -62,7 +62,7 @@ float stream_distance(const stream_t* stream) {
     return sum;
 }
 
-float* stream_sparsity(const stream_t* stream) {
+float* stream_sparsity_create(const stream_t *stream) {
     const size_t s_n = stream->n;
     const float* data = stream->data;
     float* sparsity = malloc(sizeof(float) * s_n);
@@ -90,7 +90,7 @@ float* stream_sparsity(const stream_t* stream) {
 void stream_statistics_printf(const stream_t* stream) {
     const size_t n = stream->n;
     const float distance = stream_distance(stream);
-    const float* sparsity = stream_sparsity(stream);
+    const float* sparsity = stream_sparsity_create(stream);
     printf("Stream contains %zu points. Total distance is %f. Sparsity array is: [", n, distance);
     for (size_t i = 0; i < n; i++) {
         printf("%f, ", sparsity[i]);
@@ -138,35 +138,28 @@ void _douglas_peucker(const stream_t* input, const size_t start, const size_t en
 }
 
 
-stream_t* downsample_ramer_douglas_peucker(const stream_t* input, const float epsilon) {
-    const size_t input_n = input->n;
-    const float* input_data = input->data;
+void downsample_rdp(stream_t *input, const float epsilon) {
+    size_t input_n = input->n;
+    float* input_data = input->data;
 
-    bool* indices = malloc(input_n * sizeof(bool));
-    for (size_t i = 0; i < input_n; i++) {
-        indices[i] = 0;
-    }
+    bool* indices = calloc(input_n, sizeof(bool));
     indices[0] = 1;
     indices[input_n - 1] = 1;
 
     _douglas_peucker(input, 0, input_n - 1, epsilon, indices);
-    size_t n_total = 0;
-    for (size_t i = 0; i < input_n; i++) {
-        n_total += indices[i];
-    }
-    stream_t* output = stream_create(n_total);
-    float* output_data = output->data;
+    // Indices is an array 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, ... 1
 
     size_t n = 0;
     for (size_t i = 0; i < input_n; i++) {
         if (indices[i]) {
-            output_data[2 * n] = input_data[2 * i];
-            output_data[2 * n + 1] = input_data[2 * i + 1];
+            input_data[2*n] = input_data[2*i];
+            input_data[2*n + 1] = input_data[2*i + 1];
             n++;
         }
     }
+    input->n = n;
+    input->data = realloc(input_data, 2*n*sizeof(float));
     free(indices);
-    return output;
 }
 
 stream_t* downsample_radial_distance(const stream_t* input, const float epsilon) {

@@ -27,7 +27,7 @@ void compute_stream_distance_test() {
 void compute_sparsity_evenly_spaced_test() {
     size_t a_n = 5;
     const stream_t* stream = stream_create_from_list(a_n, 0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 4.0, 4.0);
-    float* sparsity = stream_sparsity(stream);
+    float* sparsity = stream_sparsity_create(stream);
     for (size_t i = 0; i < a_n; i++) {
         assert_true(sparsity[i] == 0.5f);
     }
@@ -39,7 +39,7 @@ void compute_sparsity_evenly_spaced_test() {
 void compute_sparsity_unevenly_spaced_test() {
     size_t a_n = 5;
     const stream_t* stream = stream_create_from_list(a_n, 0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 100.0, 100.0);
-    float* sparsity = stream_sparsity(stream);
+    float* sparsity = stream_sparsity_create(stream);
     assert_true(0.974548 < sparsity[0]);
     assert_true(sparsity[0] < 0.974550);
     assert_true(0.974548 < sparsity[1]);
@@ -65,14 +65,13 @@ void compute_ramer_douglas_peucker_test_small() {
                                                      10.0, 0.0,
                                                      12.0, 0.0
     );
-    const stream_t* downsampled = downsample_ramer_douglas_peucker(stream, 1.5);
-    assert_int_equal(downsampled->n, 5);
+    downsample_rdp(stream, 1.5);
+    assert_int_equal(stream->n, 5);
     float correct[10] = {0.0, 0.0, 3.0, 0.0, 5.0, 10.0, 8.0, 0.0, 12.0, 0.0};
     for (int i = 0; i < 10; i++) {
-        assert_true(downsampled->data[i] == correct[i]);
+        assert_true(stream->data[i] == correct[i]);
     }
     stream_destroy(stream);
-    stream_destroy(downsampled);
 }
 
 void compute_ramer_douglas_peucker_test_medium() {
@@ -94,14 +93,13 @@ void compute_ramer_douglas_peucker_test_medium() {
                                                      10.0, 1.0,
                                                      11.0, 2.0
     );
-    const stream_t* downsampled = downsample_ramer_douglas_peucker(stream, 1.1);
-    assert_int_equal(downsampled->n, 8);
+    downsample_rdp(stream, 1.1);
+    assert_int_equal(stream->n, 8);
     float correct[16] = {0.0, 0.0, 2.0, 0.0, 3.0, 2.0, 4.0, 0.0, 6.0, 0.0, 8.0, 3.0, 10.0, 1.0, 11.0, 2.0};
     for (int i = 0; i < 16; i++) {
-        assert_true(downsampled->data[i] == correct[i]);
+        assert_true(stream->data[i] == correct[i]);
     }
     stream_destroy(stream);
-    stream_destroy(downsampled);
 }
 
 void compute_ramer_douglas_peucker_test_duplicates() {
@@ -117,14 +115,13 @@ void compute_ramer_douglas_peucker_test_duplicates() {
                                                      2.0, 2.0,
                                                      4.0, 0.0
     );
-    const stream_t* downsampled = downsample_ramer_douglas_peucker(stream, 1.1);
-    assert_int_equal(downsampled->n, 3);
+    downsample_rdp(stream, 1.1);
+    assert_int_equal(stream->n, 3);
     float correct[6] = {0.0, 0.0, 2.0, 2.0, 4.0, 0.0};
     for (int i = 0; i < 6; i++) {
-        assert_true(downsampled->data[i] == correct[i]);
+        assert_true(stream->data[i] == correct[i]);
     }
     stream_destroy(stream);
-    stream_destroy(downsampled);
 }
 
 int main() {

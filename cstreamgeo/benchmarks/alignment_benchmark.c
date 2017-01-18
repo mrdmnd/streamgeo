@@ -29,7 +29,7 @@ void full_random_alignment_benchmark(const size_t u_n, const size_t v_n, const s
 
         clock_t start, end;
         start = clock();
-        warp_summary_t* warp_summary = full_align(u, v);
+        warp_summary_t* warp_summary = full_warp_summary_create(u, v);
         end = clock();
         time_accumulator_1 += ((double) (end - start)) / CLOCKS_PER_SEC;
         start = clock();
@@ -77,7 +77,7 @@ void fast_random_alignment_benchmark(const size_t u_n, const size_t v_n, const s
 
         clock_t start, end;
         start = clock();
-        warp_summary_t* warp_summary = fast_align(u, v, radius); // Don't care about the results here; just the computation.
+        warp_summary_t* warp_summary = fast_warp_summary_create(u, v, radius); // Don't care about the results here; just the computation.
         end = clock();
         //printf("Warp summary: %zu points, %f cost\n", warp_summary->path_length, warp_summary->cost);
         free(warp_summary->index_pairs);
@@ -114,14 +114,14 @@ void accuracy_benchmark(const size_t u_n, const size_t v_n, const size_t radius_
     double fast_millis;
 
     start = clock();
-    const warp_summary_t* full_warp_summary = full_align(u, v);
+    const warp_summary_t* full_warp_summary = full_warp_summary_create(u, v);
     end = clock();
     full_millis = 1000.0*((double) (end - start)) / CLOCKS_PER_SEC;
 
 
     for (size_t radius = 0; radius <= radius_max; radius++) {
         start = clock();
-        const warp_summary_t* fast_warp_summary = fast_align(u, v, radius);
+        const warp_summary_t* fast_warp_summary = fast_warp_summary_create(u, v, radius);
         end = clock();
         fast_millis = 1000.0*((double) (end - start)) / CLOCKS_PER_SEC;
         printf("%zu rows\t%zu cols\t%zu radius\t%f full cost\t%f ms_full\t%f fast cost\t%f ms_fast\t%f error\n",
