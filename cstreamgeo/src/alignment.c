@@ -287,6 +287,11 @@ warp_info_t* _fast_dtw(const stream_t* a, const stream_t* b, const size_t radius
 
 /* ---------- TOP LEVEL FUNCTIONS, EXPOSED TO API ----------- */
 
+void warp_summary_destroy(const warp_summary_t* ws) {
+    free(ws->index_pairs);
+    free((void*) ws);
+}
+
 warp_summary_t* full_warp_summary_create(const stream_t *a, const stream_t *b) {
     const warp_info_t* warp_info = _full_dtw(a, b);
     warp_summary_t* final_warp = malloc(sizeof(warp_summary_t));
@@ -298,7 +303,6 @@ warp_summary_t* full_warp_summary_create(const stream_t *a, const stream_t *b) {
     warp_info_destroy(warp_info);
     return final_warp;
 }
-
 
 warp_summary_t* fast_warp_summary_create(const stream_t *a, const stream_t *b, const size_t radius) {
     warp_info_t* warp_info = _fast_dtw(a, b, radius);
@@ -371,16 +375,14 @@ float similarity(const stream_t *a, const stream_t *b, const size_t radius) {
         total_weight += weight;
         total_weight_error += (error * weight);
     }
-
-    free(warp_summary->index_pairs);
-    free((void*) warp_summary);
+    warp_summary_destroy(warp_summary);
     free(a_sparsity);
     free(b_sparsity);
 
     return (float) (1.0 - total_weight_error / total_weight);
 }
 
-size_t medoid_consensus(const stream_collection_t* input, const bool approximate) {
+size_t medoid_consensus(const stream_collection_t* input, const int approximate) {
     float cost_matrix[input->n][input->n];
 
     // Populate cost matrix
@@ -399,12 +401,10 @@ size_t medoid_consensus(const stream_collection_t* input, const bool approximate
                 if (i == j) {
                     cost_matrix[i][j] = 0.0;
                 } else {
-                    warp_summary_t* warp_summary = full_warp_summary_create(first, second);
+                    warp_summary_t* warp_summary = fast_warp_summary_create(first, second, radius);
                     cost_matrix[i][j] = warp_summary->cost;
                     cost_matrix[j][i] = warp_summary->cost;
-                    // TODO: make it so that fast_warp_summary_create doesn't allocate memory, but populates a passed in pointer? These are unnecessary FREEs.
-                    free(warp_summary->index_pairs);
-                    free((void*) warp_summary);
+                    warp_summary_destroy(warp_summary);
                 }
             }
         }
@@ -419,8 +419,7 @@ size_t medoid_consensus(const stream_collection_t* input, const bool approximate
                     warp_summary_t* warp_summary = full_warp_summary_create(first, second);
                     cost_matrix[i][j] = warp_summary->cost;
                     cost_matrix[j][i] = warp_summary->cost;
-                    free(warp_summary->index_pairs);
-                    free((void*) warp_summary);
+                    warp_summary_destroy(warp_summary);
                 }
             }
         }
@@ -442,7 +441,8 @@ size_t medoid_consensus(const stream_collection_t* input, const bool approximate
     return best_index;
 }
 
-stream_t* dba_consensus(const stream_collection_t* input, const bool approximate) {
+/*
+stream_t* dba_consensus(const stream_collection_t* input, const int approximate) {
     printf("NOT YET IMPLEMENTED\n");
     return NULL;
-}
+}*/

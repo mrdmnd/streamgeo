@@ -162,6 +162,7 @@ void downsample_rdp(stream_t *input, const float epsilon) {
     free(indices);
 }
 
+/*
 stream_t* downsample_radial_distance(const stream_t* input, const float epsilon) {
     printf("NOT YET IMPLEMENTED\n");
     return NULL;
@@ -171,3 +172,4 @@ stream_t* resample_fixed_factor(const stream_t* input, const size_t n, const siz
     printf("NOT YET IMPLEMENTED\n");
     return NULL;
 }
+*/

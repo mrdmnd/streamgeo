@@ -9,7 +9,7 @@
 
 
 
-void io_test_small() {
+void io_test_collection_size_one() {
     char filename[1024];
     size_t bddl = strlen(BENCHMARK_DATA_DIR);
     strcpy(filename, BENCHMARK_DATA_DIR);
@@ -31,9 +31,27 @@ void io_test_small() {
     remove(output); // Delete output file.
 }
 
+void io_test_collection_size_many() {
+    char filename[1024];
+    size_t bddl = strlen(BENCHMARK_DATA_DIR);
+    strcpy(filename, BENCHMARK_DATA_DIR);
+    strcpy(filename+bddl, "segments/oldlahondas.json");
+
+    const stream_collection_t* streams_from_json = read_streams_from_json(filename);
+    if (!streams_from_json) {
+        printf("Unable to load streams from file '%s'\n", filename);
+        return;
+    }
+
+    stream_collection_printf(streams_from_json);
+    stream_collection_destroy(streams_from_json);
+
+}
+
 int main() {
     const struct CMUnitTest tests[] = {
-            cmocka_unit_test(io_test_small),
+            cmocka_unit_test(io_test_collection_size_one),
+            cmocka_unit_test(io_test_collection_size_many),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);

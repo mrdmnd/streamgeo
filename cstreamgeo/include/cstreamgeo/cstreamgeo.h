@@ -2,23 +2,21 @@
 #define CSTREAMGEO_H
 
 #include <stddef.h>
-#include <stdbool.h>
-
 
 /* ---------------- Core data structure types ---------------- */
 
 
-typedef struct stream_s {
+typedef struct {
     float* data;         // Stream buffer [lat0, lng0, lat1, lng1, ..., latN-1, lngN-1]
     size_t n;            // Number of *POINTS* in the stream. The number of floats in the data member is 2x this value.
 } stream_t;
 
-typedef struct stream_collection_s {
+typedef struct {
     stream_t** data;     // Buffer containing pointers to streams.
     size_t n;            // Number of streams in the collection
 } stream_collection_t;
 
-typedef struct warp_summary_s {
+typedef struct {
     size_t* index_pairs; // Indices: [row_0, col_0, row_1, col_1, ..., row_N-1, col_N-1]
     size_t path_length;  // Number of *POINTS* in the warp path. The number of elts in `index_pairs` is 2x this value.
     float cost;          // Result of aligning two streams.
@@ -36,7 +34,6 @@ typedef struct warp_summary_s {
  */
 stream_t* stream_create(const size_t n);
 
-
 /**
  * Create a stream from a list of floats. Number of POINTs is equal to n, but list must have 2n elements.
  * Allocates memory; caller is responsible for cleanup.
@@ -46,20 +43,17 @@ stream_t* stream_create(const size_t n);
  */
 stream_t* stream_create_from_list(const size_t n, ...);
 
-
 /**
  * Frees the memory allocated by `stream`.
  * @param stream
  */
 void stream_destroy(const stream_t* stream);
 
-
 /**
  * Print the (entire) contents of `stream`.
  * @param stream
  */
 void stream_printf(const stream_t* stream);
-
 
 /**
  * Prints the number of points, distance, and sparsity (see docs) for the stream.
@@ -92,7 +86,6 @@ float stream_distance(const stream_t* stream);
  */
 float* stream_sparsity_create(const stream_t *stream);
 
-
 /**
  * Returns the COST of the optimal alignment of stream `a` to stream `b`, but not the path.
  * Uses an approach that is O(M*N) in TIME but only O(max(M, N)) in space - we can get away
@@ -114,7 +107,6 @@ float full_dtw_cost(const stream_t* a, const stream_t* b);
  */
 warp_summary_t* full_warp_summary_create(const stream_t *a, const stream_t *b);
 
-
 /**
  * Returns the (approximately) optimal alignment of stream a to stream b.
  * Allocates memory; caller is responsible for cleanup.
@@ -128,7 +120,6 @@ warp_summary_t* full_warp_summary_create(const stream_t *a, const stream_t *b);
  */
 warp_summary_t* fast_warp_summary_create(const stream_t *a, const stream_t *b, const size_t radius);
 
-
 /**
  * Establishes a "common-sense" distance metric on two streams.
  * Larger values for radius lead to slower code, but more accurate DTW alignment.
@@ -141,6 +132,7 @@ warp_summary_t* fast_warp_summary_create(const stream_t *a, const stream_t *b, c
  */
 float similarity(const stream_t *a, const stream_t *b, const size_t radius);
 
+void warp_summary_destroy(const warp_summary_t* warp_summary);
 
 /* ---------------- Stream Resampling Routines ---------------- */
 
@@ -153,7 +145,6 @@ float similarity(const stream_t *a, const stream_t *b, const size_t radius);
  */
 void downsample_rdp(stream_t *input, const float epsilon);
 
-
 /**
  * NOT YET IMPLEMENTED
  * Downsamples a stream quickly with O(n) radial-distance simplification.
@@ -162,7 +153,6 @@ void downsample_rdp(stream_t *input, const float epsilon);
  * @return Downsampled stream
  */
 // stream_t* downsample_radial_distance(const stream_t* input, const float epsilon);
-
 
 /**
  * NOT YET IMPLEMENTED
@@ -183,11 +173,11 @@ void downsample_rdp(stream_t *input, const float epsilon);
  * Computes the index of the "most median" element of a stream collection.
  * @param input Pointer to a stream collection
  * @param approximate Flag to use fast_dtw instead of full_dtw.
- *        If "approx" flag is set, computes alignment with radius set to ceil(max(stream_length)^(0.25))
+ *        If "approx" flag is set to 1, computes alignment with radius set to ceil(max(stream_length)^(0.25))
+ *        Otherwise                   , computes full alignment.
  * @return An index into the stream_collection_t that selects the (previously existing) "most representative" element from the stream collection.
  */
-size_t medoid_consensus(const stream_collection_t* input, const bool approximate);
-
+size_t medoid_consensus(const stream_collection_t* input, const int approximate);
 
 /**
  * Allocates space for, constructs, and returns a pointer to a synthetic "optimal element" for a
@@ -196,6 +186,6 @@ size_t medoid_consensus(const stream_collection_t* input, const bool approximate
  *        If "approx" flag is set, computes alignment with radius set to ceil(max(stream_length)^(0.25))
  * @return A stream_t object that represents a (newly synthesized) "most representative" element from the stream collection.
  */
-stream_t* dba_consensus(const stream_collection_t* input, const bool approximate);
+stream_t* dba_consensus(const stream_collection_t* input, const int approximate);
 
 #endif
