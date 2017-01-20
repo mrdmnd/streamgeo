@@ -38,7 +38,7 @@ void compute_sparsity_evenly_spaced_test() {
 
 void compute_sparsity_unevenly_spaced_test() {
     size_t a_n = 5;
-    const stream_t* stream = stream_create_from_list(a_n, 0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 100.0, 100.0);
+    stream_t* stream = stream_create_from_list(a_n, 0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 100.0, 100.0);
     float* sparsity = stream_sparsity_create(stream);
     assert_true(0.974548 < sparsity[0]);
     assert_true(sparsity[0] < 0.974550);
@@ -56,7 +56,7 @@ void compute_sparsity_unevenly_spaced_test() {
 
 void compute_ramer_douglas_peucker_test_small() {
     size_t a_n = 7;
-    const stream_t* stream = stream_create_from_list(a_n,
+    stream_t* stream = stream_create_from_list(a_n,
                                                      0.0, 0.0,
                                                      1.0, 0.0,
                                                      3.0, 0.0,
@@ -81,7 +81,7 @@ void compute_ramer_douglas_peucker_test_medium() {
     // . . . . . . . . . . X .
     // X o X . X o X . . . . .
     // should lose the second and sixth points
-    const stream_t* stream = stream_create_from_list(a_n,
+    stream_t* stream = stream_create_from_list(a_n,
                                                      0.0, 0.0,
                                                      1.0, 0.0,// disappears
                                                      2.0, 0.0,
@@ -109,7 +109,7 @@ void compute_ramer_douglas_peucker_test_duplicates() {
     // . . . . .
     // X . . . X
     // should lose the point at index 1 or 2, doesn't matter which
-    const stream_t* stream = stream_create_from_list(a_n,
+    stream_t* stream = stream_create_from_list(a_n,
                                                      0.0, 0.0,
                                                      2.0, 2.0,// disappears
                                                      2.0, 2.0,

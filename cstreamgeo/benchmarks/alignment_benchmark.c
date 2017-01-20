@@ -136,39 +136,54 @@ void medoid_real_data_benchmark() {
     char filename[1024];
     size_t bddl = strlen(BENCHMARK_DATA_DIR);
     strcpy(filename, BENCHMARK_DATA_DIR);
-    strcpy(filename+bddl, "segments/oldlahondas.json");
+    strcpy(filename + bddl, "segments/oldlahondas.json");
 
-    const stream_collection_t* streams_from_json = read_streams_from_json(filename);
+    const stream_collection_t *streams_from_json = read_streams_from_json(filename);
+    if (!streams_from_json) {
+        printf("Unable to load streams from file '%s'\n", filename);
+        return;
+    }
+    int approximate = 0;
+    size_t index;
+    printf("Computing medoid consensus with approximate = %d \n", approximate);
+    //TIMEIT(
+            index = medoid_consensus(streams_from_json, approximate);
+    //);
+    printf("Index of optimal stream with approximate = %d  is %zu\n", approximate, index);
+
+    approximate = 1;
+    printf("Computing medoid consensus with approximate = %d \n", approximate);
+    //TIMEIT(
+            index = medoid_consensus(streams_from_json, approximate);
+    //);
+
+    printf("Index of optimal stream with approximate = %d  is %zu\n", approximate, index);
+    stream_collection_destroy(streams_from_json);
+}
+
+void medoid_real_data_reduced_benchmark() {
+    char filename[1024];
+    size_t bddl = strlen(BENCHMARK_DATA_DIR);
+    strcpy(filename, BENCHMARK_DATA_DIR);
+    strcpy(filename + bddl, "segments/oldlahondas.json");
+
+    const stream_collection_t *streams_from_json = read_streams_from_json(filename);
     if (!streams_from_json) {
         printf("Unable to load streams from file '%s'\n", filename);
         return;
     }
 
-    stream_collection_printf(streams_from_json);
+    for (size_t index = 0; index < streams_from_json->n; ++index) {
+        //printf("Downsampling a stream.\n");
 
-    int approximate = 0;
-    size_t index;
-    printf("Computing medoid consensus with approximate = %d \n", approximate);
-    TIMEIT(
-        index = medoid_consensus(streams_from_json, approximate);
-    );
-    printf("Index of optimal stream with approximate = %d  is %zu\n", approximate, index);
-
-    approximate = 1;
-    printf("Computing medoid consensus with approximate = %d \n", approximate);
-    TIMEIT(
-        index = medoid_consensus(streams_from_json, approximate);
-    );
-    printf("Index of optimal stream with approximate = %d  is %zu\n", approximate, index);
-/*
-    for (size_t index = 0; index <= streams_from_json->n; ++index) {
-        printf("Downsamping a stream.\n");
-        TIMEIT(
-            downsample_rdp(streams_from_json->data[index], 0.0001);
-        );
+        stream_t* s = streams_from_json->data[index];
+        stream_geojson_printf(s);
+        printf("start length: %d\n", s->n);
+        downsample_rdp(s, 0.00005);
+        stream_geojson_printf(s);
+        printf("new length: %d\n", s->n);
     }
-    stream_collection_printf(streams_from_json);
-*/
+
     stream_collection_destroy(streams_from_json);
 }
 
@@ -176,6 +191,7 @@ int main() {
     //full_random_alignment_benchmark(4000, 4000, 20);
     //fast_random_alignment_benchmark(4000, 4000, 8, 20);
     //accuracy_benchmark(24000, 24000, 20);
-    medoid_real_data_benchmark();
+    //medoid_real_data_benchmark();
+    medoid_real_data_reduced_benchmark();
 }
 

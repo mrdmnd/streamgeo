@@ -56,6 +56,12 @@ void stream_destroy(const stream_t* stream);
 void stream_printf(const stream_t* stream);
 
 /**
+ * Print the contents of the stream, formatted as a GEOJSON feature.
+ * @param stream
+ */
+void stream_geojson_printf(const stream_t* stream);
+
+/**
  * Prints the number of points, distance, and sparsity (see docs) for the stream.
  * @param stream
  */
