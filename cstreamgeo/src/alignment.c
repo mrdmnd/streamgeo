@@ -76,24 +76,34 @@ float full_dtw_cost(const stream_t* restrict a, const stream_t* restrict b) {
 warp_info_t* _full_dtw(const stream_t* restrict a, const stream_t* restrict b) {
     const float* a_data = a->data;
     const float* b_data = b->data;
+
     const size_t a_n = a->n;
+    const size_t dp_rows = a_n + 1;
+
     const size_t b_n = b->n;
-    float* dp_table = malloc(a_n * b_n * sizeof(unpacked_float_t));
+    const size_t dp_cols = b_n + 1;
+
+    float* dp_table = malloc( dp_rows * dp_cols * sizeof(float));
+    // Left boundary
+    for (size_t i = 0; i < dp_rows; i++) {
+        dp_table[i * dp_cols + 0] = FLT_MAX;
+    }
+    // Upper boundary
+    for (size_t j = 0; j < dp_cols; j++) {
+        dp_table[0 * dp_cols + j] = FLT_MAX;
+    }
     float diag_cost, up_cost, left_cost;
     float lat_diff, lng_diff, dt;
-    for (size_t row = 0; row < a_n; row++) {
-        for (size_t col = 0; col < b_n; col++) {
+    for (size_t row = 1; row < dp_rows; row++) {
+        for (size_t col = 1; col < dp_cols; col++) {
             lat_diff = b_data[2*col + 0] - a_data[2*row + 0];
             lng_diff = b_data[2*col + 1] - a_data[2*row + 1];
             dt = (lng_diff * lng_diff) + (lat_diff * lat_diff);
-            diag_cost = (row == 0 || col == 0) ? FLT_MAX : dp_table[(row-1)*b_n + (col-1)];
-            up_cost   = (row == 0            ) ? FLT_MAX : dp_table[(row-1)*b_n + (col  )];
-            left_cost = (            col == 0) ? FLT_MAX : dp_table[(row  )*b_n + (col-1)];
+            diag_cost = dp_table[(row-1)*b_n + (col-1)];
+            up_cost   = dp_table[(row-1)*b_n + (col  )];
+            left_cost = dp_table[(row  )*b_n + (col-1)];
 
-            if (row == 0 && col == 0) {
-                dp_table[0] = 0 + dt;
-            }
-            else if (diag_cost <= up_cost && diag_cost <= left_cost) {
+            if (diag_cost <= up_cost && diag_cost <= left_cost) {
                 dp_table[row*b_n + col] = diag_cost + dt;
             }
             else if (up_cost <= left_cost) {
@@ -105,35 +115,28 @@ warp_info_t* _full_dtw(const stream_t* restrict a, const stream_t* restrict b) {
         }
     }
 
-    size_t u = a_n-1;
-    size_t v = b_n-1;
+    size_t u = a_n;
+    size_t v = b_n;
     strided_mask_t* mask = strided_mask_create(a_n, b_n);
     size_t* start_cols = mask->start_cols;
     size_t* end_cols = mask->end_cols;
-    size_t path_len = 1;
     start_cols[0] = 0;
-    end_cols[u] = v;
+    end_cols[u-1] = v-1;
     /* Trace back through the DP table to recover the warp path. */
-    while (u > 0 || v > 0) {
-        path_len++;
-        diag_cost = (u > 1 && v > 1) ? dp_table[(u-1)*b_n + (v-1)]: FLT_MAX;
-        up_cost   = (u > 1) ? dp_table[(u-1)*b_n + (v  )] : FLT_MAX;
-        left_cost = (v > 1) ? dp_table[(u  )*b_n + (v-1)] : FLT_MAX;
+    while (u > 0 && v > 0) {
+        diag_cost = dp_table[(u-1)*b_n + (v-1)];
+        up_cost   = dp_table[(u-1)*b_n + (v  )];
+        left_cost = dp_table[(u  )*b_n + (v-1)];
         if (diag_cost <= up_cost && diag_cost <= left_cost) {
-            // This was a diagonal step: we know that the current column (v) is the "start" column for this row (u),
-            // and that the column one to our left (v-1) is the "end" column for the row above us (u-1).
-            start_cols[u] = v;
-            end_cols[u-1] = v-1;
+            start_cols[u-1] = v-1;
+            end_cols[u-2] = v-2;
             u -= 1;
             v -= 1;
         } else if (up_cost <= left_cost) {
-            // This was a vertical step: we know that the current column (v) is the "start" column for this row (u),
-            // and that the current column (v) is also the "end" column for the row above this row (u-1)
-            start_cols[u] = v;
-            end_cols[u-1] = v;
+            start_cols[u-1] = v-1;
+            end_cols[u-2] = v-1;
             u -= 1;
         } else {
-            // This was a horizontal step. We don't learn anything about the start or end columns.
             v -= 1;
         }
     }
