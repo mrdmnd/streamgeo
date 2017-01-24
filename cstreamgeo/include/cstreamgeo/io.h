@@ -10,7 +10,6 @@
  */
 stream_collection_t* stream_collection_create(const size_t n);
 
-
 /**
  * Destroy a streams collection object, and recursively destory all streams inside of it.
  * @param streams
@@ -23,7 +22,6 @@ void stream_collection_destroy(const stream_collection_t* streams);
  */
 void stream_collection_printf(const stream_collection_t* streams);
 
-
 /**
  * Load a collection of streams from the file specified by `filename`.
  * Each line of the file is assumed to represent one stream.
@@ -32,7 +30,6 @@ void stream_collection_printf(const stream_collection_t* streams);
  * @return A pointer to a constant stream collection, containing one stream for each line in the file.
  */
 const stream_collection_t* read_streams_from_json(const char* filename);
-
 
 /**
  * NOT YET IMPLEMENTED
@@ -43,7 +40,6 @@ const stream_collection_t* read_streams_from_json(const char* filename);
  */
 void write_streams_to_json(const char* filename, const stream_collection_t* streams);
 
-
 /**
  * Read a collection of streams from the given file.
  * File format is custom binary.
@@ -51,7 +47,6 @@ void write_streams_to_json(const char* filename, const stream_collection_t* stre
  * @return A pointer to a constant stream collection, containing one stream for each line in the file.
  */
 const stream_collection_t* read_streams_from_binary(const char* filename);
-
 
 /**
  * Write a collection of streams to the given file.

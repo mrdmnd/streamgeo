@@ -158,7 +158,6 @@ warp_info_t* _full_dtw(const stream_t* restrict a, const stream_t* restrict b) {
     return warp_info;
 }
 
-
 warp_info_t* _windowed_dtw(const stream_t* restrict a, const stream_t* restrict b, const strided_mask_t* restrict window) {
     const float* a_data = a->data;
     const float* b_data = b->data;

@@ -91,14 +91,12 @@
  * 3 . * * * . .
  * 4 . . * * * *
  */
-
 typedef struct strided_mask_s {
     size_t n_rows;
     size_t n_cols;
     size_t* start_cols;
     size_t* end_cols;
 } strided_mask_t;
-
 
 /**
  * Creates a new empty strided_mask object with n_rows and n_cols.
@@ -108,7 +106,6 @@ typedef struct strided_mask_s {
  * @return An unpopulated strided mask object.
  */
 strided_mask_t* strided_mask_create(const size_t n_rows, const size_t n_cols);
-
 
 /**
  * Creates a strided mask object from a list of start, end column indices
@@ -120,20 +117,17 @@ strided_mask_t* strided_mask_create(const size_t n_rows, const size_t n_cols);
  */
 strided_mask_t* strided_mask_create_from_list(const size_t n_rows, const size_t n_cols, ...);
 
-
 /**
  * Destroys the input mask object and frees its memory
  * @param mask
  */
 void strided_mask_destroy(const strided_mask_t* mask);
 
-
 /**
  * Prints the input mask object.
  * @param mask
  */
 void strided_mask_printf(const strided_mask_t* mask);
-
 
 /**
  * This function converts a (presumed) valid path mask to a sequence of index pairs
@@ -144,7 +138,6 @@ void strided_mask_printf(const strided_mask_t* mask);
  * @return An array of [i_0, j_0, i_1, j_1, ... i_PL-1, j_PL-1] indices into streams i and j that were used to build the mask.
  */
 size_t* strided_mask_to_index_pairs(const strided_mask_t* mask, size_t* path_length);
-
 
 /**
  * Upsamples the input mask by a factor of two. If row_parity or col_parity are set to 1, then we add a row (or col).
@@ -212,5 +205,4 @@ size_t* strided_mask_to_index_pairs(const strided_mask_t* mask, size_t* path_len
  * @return A new, expanded mask.
  */
 strided_mask_t* strided_mask_expand(const strided_mask_t* mask, const int row_parity, const int col_parity, const size_t radius);
-
 #endif
