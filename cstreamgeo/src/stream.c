@@ -50,17 +50,13 @@ void stream_printf(const stream_t* stream) {
 void stream_geojson_printf(const stream_t* stream) {
     const size_t n = stream->n;
     const float* data = stream->data;
-    const char* header = "{ \"type\": \"Feature\", \"properties\": {}, \"geometry\": { \"type\": \"LineString\", \"coordinates\": [";
-    printf(header);
+    printf("{ \"type\": \"Feature\", \"properties\": {}, \"geometry\": { \"type\": \"LineString\", \"coordinates\": [");
     for (size_t i = 0; i < n-1; i++) {
         printf("[%f, %f], ", data[2*i + 1], data[2*i]);
     }
     printf("[%f, %f]]", data[2*(n-1) + 1], data[2*(n-1)]);
-    const char* footer = "}}\n";
-    printf(footer);
-
-
-};
+    printf("}}\n");
+}
 
 float stream_distance(const stream_t* stream) {
     const size_t s_n = stream->n;

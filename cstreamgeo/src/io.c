@@ -102,10 +102,11 @@ const stream_collection_t* read_streams_from_json(const char* filename) {
     return streams;
 }
 
+/*
 void write_streams_to_json(const char* filename, const stream_collection_t* streams) {
     printf("NOT YET IMPLEMENTED\n");
     return;
-}
+}*/
 
 const stream_collection_t* read_streams_from_binary(const char* filename) {
     FILE* fp = fopen(filename, "r");

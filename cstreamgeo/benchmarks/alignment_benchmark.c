@@ -6,6 +6,7 @@
 #include <time.h>
 #include <string.h>
 #include <cstreamgeo/utilc.h>
+#include <assert.h>
 #include "config.h" // Contains make-time generated benchmark_data_dir #define macro
 
 
@@ -35,10 +36,11 @@ void full_random_alignment_benchmark(const size_t u_n, const size_t v_n, const s
         time_accumulator_1 += ((double) (end - start)) / CLOCKS_PER_SEC;
         start = clock();
         float warp_cost = full_dtw_cost(u, v);
+        //full_dtw_cost(u, v);
         end = clock();
         time_accumulator_2 += ((double) (end - start)) / CLOCKS_PER_SEC;
 
-        //assert(warp_cost == warp_summary->cost);
+        assert(warp_cost == warp_summary->cost);
         warp_summary_destroy(warp_summary);
         stream_destroy(u);
         stream_destroy(v);
@@ -178,20 +180,20 @@ void medoid_real_data_reduced_benchmark() {
 
         stream_t* s = streams_from_json->data[index];
         stream_geojson_printf(s);
-        printf("start length: %d\n", s->n);
+        printf("start length: %zu\n", s->n);
         downsample_rdp(s, 0.00005);
         stream_geojson_printf(s);
-        printf("new length: %d\n", s->n);
+        printf("new length: %zu\n", s->n);
     }
 
     stream_collection_destroy(streams_from_json);
 }
 
 int main() {
-    //full_random_alignment_benchmark(4000, 4000, 20);
+    full_random_alignment_benchmark(4000, 4000, 20);
     //fast_random_alignment_benchmark(4000, 4000, 8, 20);
     //accuracy_benchmark(24000, 24000, 20);
     //medoid_real_data_benchmark();
-    medoid_real_data_reduced_benchmark();
+    //medoid_real_data_reduced_benchmark();
 }
 
