@@ -10,12 +10,10 @@
 
 #define PI 3.1415926535f
 
-
 typedef struct {
     float warp_cost;
     strided_mask_t* path_mask;
 } warp_info_t;
-
 
 void warp_info_destroy(const warp_info_t* warp) {
     strided_mask_destroy(warp->path_mask);
@@ -92,28 +90,51 @@ warp_info_t* _full_dtw(const stream_t* restrict a, const stream_t* restrict b) {
     for (size_t j = 0; j < dp_cols; j++) {
         dp_table[0 * dp_cols + j] = FLT_MAX;
     }
+    dp_table[0] = 0;
+
     float diag_cost, up_cost, left_cost;
     float lat_diff, lng_diff, dt;
     for (size_t row = 1; row < dp_rows; row++) {
         for (size_t col = 1; col < dp_cols; col++) {
-            lat_diff = b_data[2*col + 0] - a_data[2*row + 0];
-            lng_diff = b_data[2*col + 1] - a_data[2*row + 1];
+            lat_diff = b_data[2*(col-1) + 0] - a_data[2*(row-1) + 0];
+            lng_diff = b_data[2*(col-1) + 1] - a_data[2*(row-1) + 1];
             dt = (lng_diff * lng_diff) + (lat_diff * lat_diff);
-            diag_cost = dp_table[(row-1)*b_n + (col-1)];
-            up_cost   = dp_table[(row-1)*b_n + (col  )];
-            left_cost = dp_table[(row  )*b_n + (col-1)];
+            diag_cost = dp_table[(row-1)*dp_cols + (col-1)];
+            up_cost   = dp_table[(row-1)*dp_cols + (col  )];
+            left_cost = dp_table[(row  )*dp_cols + (col-1)];
 
             if (diag_cost <= up_cost && diag_cost <= left_cost) {
-                dp_table[row*b_n + col] = diag_cost + dt;
+                dp_table[row*dp_cols + col] = diag_cost + dt;
             }
             else if (up_cost <= left_cost) {
-                dp_table[row*b_n + col] = up_cost + dt;
+                dp_table[row*dp_cols + col] = up_cost + dt;
             }
             else {
-                dp_table[row*b_n + col] = left_cost + dt;
+                dp_table[row*dp_cols + col] = left_cost + dt;
             }
         }
     }
+//
+//    for (size_t i = 0; i < dp_rows; i++) {
+//        for (size_t j = 0; j < dp_cols; j++) {
+//            float v = dp_table[i*dp_cols + j];
+//            v == FLT_MAX ? printf(".      ") : printf("%f ", v);
+//        }
+//        printf("\n");
+//    }
+
+    // a_n=6, b_n=8
+    // dp_rows=7, dp_cols=9
+    // x = real data, . = boundary
+    /*   0 1 2 3 4 5 6 7 8
+     * 0 . . . . . . . . .
+     * 1 . x x x x x x x x
+     * 2 . x x x x x x x x
+     * 3 . x x x x x x x x
+     * 4 . x x x x x x x x
+     * 5 . x x x x x x x x
+     * 6 . x x x x x x x x
+     */
 
     size_t u = a_n;
     size_t v = b_n;
@@ -123,27 +144,35 @@ warp_info_t* _full_dtw(const stream_t* restrict a, const stream_t* restrict b) {
     start_cols[0] = 0;
     end_cols[u-1] = v-1;
     /* Trace back through the DP table to recover the warp path. */
-    while (u > 0 && v > 0) {
-        diag_cost = dp_table[(u-1)*b_n + (v-1)];
-        up_cost   = dp_table[(u-1)*b_n + (v  )];
-        left_cost = dp_table[(u  )*b_n + (v-1)];
+    while (u > 1 && v > 1) { // While we're not at the origin,
+        diag_cost = dp_table[(u - 1) * dp_cols + (v - 1)];
+        up_cost   = dp_table[(u - 1) * dp_cols + (v    )];
+        left_cost = dp_table[(u    ) * dp_cols + (v - 1)];
         if (diag_cost <= up_cost && diag_cost <= left_cost) {
-            start_cols[u-1] = v-1;
-            end_cols[u-2] = v-2;
+            start_cols[u - 1] = v - 1;
+            end_cols[u - 2] = v - 2;
             u -= 1;
             v -= 1;
         } else if (up_cost <= left_cost) {
-            start_cols[u-1] = v-1;
-            end_cols[u-2] = v-1;
+            start_cols[u - 1] = v - 1;
+            end_cols[u - 2] = v - 1;
             u -= 1;
         } else {
             v -= 1;
         }
     }
-
+    while (u > 1) {
+        start_cols[u - 1] = v - 1;
+        end_cols[u - 2] = v - 1;
+        u -= 1;
+    }
+    if (v > 1) {
+        end_cols[0] = v;
+    }
+    //strided_mask_printf(mask);
     warp_info_t* warp_info = malloc(sizeof(warp_info_t));
     warp_info->path_mask = mask;
-    float final_cost = dp_table[a_n*b_n - 1];
+    float final_cost = dp_table[dp_rows*dp_cols - 1];
     warp_info->warp_cost=final_cost;
     free(dp_table);
     return warp_info;
