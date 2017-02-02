@@ -191,9 +191,9 @@ void medoid_real_data_reduced_benchmark() {
 
 int main() {
     full_random_alignment_benchmark(4000, 4000, 20);
-    //fast_random_alignment_benchmark(4000, 4000, 8, 20);
-    //accuracy_benchmark(24000, 24000, 20);
-    //medoid_real_data_benchmark();
-    //medoid_real_data_reduced_benchmark();
+    fast_random_alignment_benchmark(4000, 4000, 8, 100);
+    accuracy_benchmark(24000, 24000, 20);
+    medoid_real_data_benchmark();
+    medoid_real_data_reduced_benchmark();
 }
 
