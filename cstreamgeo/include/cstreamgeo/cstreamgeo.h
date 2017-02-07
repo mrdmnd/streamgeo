@@ -192,6 +192,6 @@ size_t medoid_consensus(const stream_collection_t* input, const int approximate)
  *        If "approx" flag is set, computes alignment with radius set to ceil(max(stream_length)^(0.25))
  * @return A stream_t object that represents a (newly synthesized) "most representative" element from the stream collection.
  */
-stream_t* dba_consensus(const stream_collection_t* input, const int approximate);
+stream_t* dba_consensus(const stream_collection_t* input, const int approximate, const size_t iterations);
 
 #endif

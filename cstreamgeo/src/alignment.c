@@ -8,6 +8,7 @@
 #include <immintrin.h>
 #include <stdbool.h>
 #include <string.h>
+#include <cstreamgeo/io.h>
 
 #define PI 3.1415926535f
 
@@ -19,11 +20,11 @@ typedef struct {
 void warp_info_destroy(const warp_info_t* warp) {
     strided_mask_destroy(warp->path_mask);
     free((void *) warp);
-
 }
 
 
 // A method that only returns the *COST* of the alignment (full) -- saves on space if we don't need the path.
+// NOTE: allocates space for costs on the stack, assumption is that this will succeed.
 float full_dtw_cost(const stream_t* restrict a, const stream_t* restrict b) {
     const float* a_data = a->data;
     const float* b_data = b->data;
@@ -236,9 +237,8 @@ warp_info_t* _fast_dtw(const stream_t* a, const stream_t* b, const size_t radius
 }
 
 
-
-
 /* ---------- TOP LEVEL FUNCTIONS, EXPOSED TO API ----------- */
+
 
 void warp_summary_destroy(const warp_summary_t* ws) {
     free(ws->index_pairs);
@@ -341,39 +341,24 @@ size_t medoid_consensus(const stream_collection_t* input, const int approximate)
     // Populate cost matrix
     stream_t* first;
     stream_t* second;
+    size_t radius = 0;
     if (approximate) {
-        size_t radius = 0;
         for (size_t i = 0; i < input->n; i++) {
-            radius = MAX(radius, (size_t)ceilf( powf(input->data[i]->n, 0.25) ));
+            radius = MAX(radius, (size_t) ceilf(powf(input->data[i]->n, 0.25)));
         }
+    }
 
-        for (size_t i = 0; i < input->n; i++) {
-            first = input->data[i];
-            for (size_t j = 0; j <= i; j++) { // TODO: check if this is a bug; and if we want j < i as the test
-                second = input->data[j];
-                if (i == j) {
-                    cost_matrix[i][j] = 0.0;
-                } else {
-                    warp_summary_t* warp_summary = fast_warp_summary_create(first, second, radius);
-                    cost_matrix[i][j] = warp_summary->cost;
-                    cost_matrix[j][i] = warp_summary->cost;
-                    warp_summary_destroy(warp_summary);
-                }
-            }
-        }
-    } else {
-        for (size_t i = 0; i < input->n; i++) {
-            first = input->data[i];
-            for (size_t j = 0; j <= i; j++) {
-                second = input->data[j];
-                if (i == j) {
-                    cost_matrix[i][j] = 0.0;
-                } else {
-                    warp_summary_t* warp_summary = full_warp_summary_create(first, second);
-                    cost_matrix[i][j] = warp_summary->cost;
-                    cost_matrix[j][i] = warp_summary->cost;
-                    warp_summary_destroy(warp_summary);
-                }
+    for (size_t i = 0; i < input->n; i++) {
+        first = input->data[i];
+        for (size_t j = 0; j <= i; j++) {
+            second = input->data[j];
+            if (i == j) {
+                cost_matrix[i][j] = 0.0;
+            } else {
+                warp_summary_t* warp_summary = approximate ? fast_warp_summary_create(first, second, radius) : full_warp_summary_create(first, second);
+                cost_matrix[i][j] = warp_summary->cost;
+                cost_matrix[j][i] = warp_summary->cost;
+                warp_summary_destroy(warp_summary);
             }
         }
     }
@@ -394,8 +379,46 @@ size_t medoid_consensus(const stream_collection_t* input, const int approximate)
     return best_index;
 }
 
-/*
-stream_t* dba_consensus(const stream_collection_t* input, const int approximate) {
-    printf("NOT YET IMPLEMENTED\n");
-    return NULL;
-}*/
+// Mutates/modifies the stream passed as consensus_stream by doing a DBA update.
+// If radius != -1, then we're doing an approximate warp summary.
+// For each element in the input collection,
+void _dba_update(const stream_collection_t* input_collection, stream_t* consensus_stream, const ssize_t radius) {
+
+
+    return;
+}
+
+// Allocates memory for the consensus stream that is returned.
+stream_t* dba_consensus(const stream_collection_t* input, const int approximate, const size_t iterations) {
+    // Choose a random element of the set to be the initial consensus sequence.
+    // Copy the contents from the
+    const size_t consensus_length = input->data[0]->n;
+    stream_t* consensus = stream_create(consensus_length);
+
+    memcpy(consensus->data, input->data[0]->data, 2*consensus_length);
+
+    ssize_t radius = -1;
+    if (approximate) {
+        for (size_t i = 0; i < input->n; i++) {
+            radius = MAX(radius, (size_t) ceilf(powf(input->data[i]->n, 0.25)));
+        }
+    }
+
+    const size_t input_collection_size = input->n;
+    // tuple_association[i] contains an array of points that are dynamic-timewarp-mapped to point [i] in the consensus stream
+    // our standard way of representing a collection of points is ... drum roll ... a stream. Although we don't care about the
+    // ordering here, it seemed cleaner than creating a separate type for a collection of unordered points, this is technically
+    // an abuse of the stream_collection object.
+    stream_collection_t* tuple_association = stream_collection_create(consensus_length);
+    for (size_t i = 0; i < consensus_length; i++) {
+        tuple_association->data[i] = stream_create(input_collection_size);
+    }
+
+    for (size_t i = 0; i < iterations; i++) {
+        _dba_update(input, consensus, radius);
+    }
+
+    stream_collection_destroy(tuple_association);
+
+    return consensus;
+}
