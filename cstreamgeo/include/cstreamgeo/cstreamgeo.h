@@ -7,8 +7,9 @@
 
 
 typedef struct {
-    float* data;         // Stream buffer [lat0, lng0, lat1, lng1, ..., latN-1, lngN-1]
-    size_t n;            // Number of *POINTS* in the stream. The number of floats in the data member is 2x this value.
+    int32_t* lats;       // Encoded as 10^6 * degree value (i.e. 90 degrees ==> 90000000)
+    int32_t* lngs;
+    size_t n;            // Number of points in the stream.
 } stream_t;
 
 typedef struct {
@@ -19,7 +20,7 @@ typedef struct {
 typedef struct {
     size_t* index_pairs; // Indices: [row_0, col_0, row_1, col_1, ..., row_N-1, col_N-1]
     size_t path_length;  // Number of *POINTS* in the warp path. The number of elts in `index_pairs` is 2x this value.
-    float cost;          // Result of aligning two streams.
+    int32_t cost;          // Result of aligning two streams.
 } warp_summary_t;
 
 
@@ -101,7 +102,7 @@ float* stream_sparsity_create(const stream_t *stream);
  * @param b Second input stream
  * @return The cost of aligning the two streams
  */
-float full_dtw_cost(const stream_t* a, const stream_t* b);
+int32_t full_dtw_cost(const stream_t* a, const stream_t* b);
 
 /**
  * Returns the optimal alignment of stream `a` to stream `b`.

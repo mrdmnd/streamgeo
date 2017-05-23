@@ -9,6 +9,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <cstreamgeo/io.h>
+#include <stdint.h>
 
 #define PI 3.1415926535f
 
@@ -25,25 +26,31 @@ void warp_info_destroy(const warp_info_t* warp) {
 
 // A method that only returns the *COST* of the alignment (full) -- saves on space if we don't need the path.
 // NOTE: allocates space for costs on the stack, assumption is that this will succeed.
-float full_dtw_cost(const stream_t* restrict a, const stream_t* restrict b) {
-    const float* a_data = a->data;
-    const float* b_data = b->data;
+int32_t full_dtw_cost(const stream_t* restrict a, const stream_t* restrict b) {
+    const int32_t* a_lats = a->lats;
+    const int32_t* a_lngs = a->lngs;
+    const int32_t* b_lats = b->lats;
+    const int32_t* b_lngs = b->lngs;
     const size_t a_n = a->n;
     const size_t b_n = b->n;
-    float prev_costs[b_n+1];
-    float curr_costs[b_n+1];
+
+    int32_t prev_costs[b_n+1];
+    int32_t curr_costs[b_n+1];
+
     for (size_t col = 0; col <= b_n; col++) {
-        prev_costs[col] = FLT_MAX;
+        prev_costs[col] = INT32_MAX;
     }
     prev_costs[0] = 0;
-    float lat_diff, lng_diff, dt;
-    float diag_cost, up_cost, left_cost;
+
+    int32_t lat_diff, lng_diff, dt;
+    int32_t diag_cost, up_cost, left_cost;
+
     for (size_t row = 0; row < a_n; row++) {
-        curr_costs[0] = FLT_MAX;
+        curr_costs[0] = INT32_MAX;
         for (size_t col = 0; col < b_n; col++) {
-            lat_diff = b_data[2*col + 0] - a_data[2*row + 0];
-            lng_diff = b_data[2*col + 1] - a_data[2*row + 1];
-            dt =  (lng_diff * lng_diff) + (lat_diff * lat_diff);
+            lat_diff = b_lats[col] - a_lats[row];
+            lng_diff = b_lngs[col] - a_lngs[row];
+            dt = (lng_diff * lng_diff) + (lat_diff * lat_diff);
             diag_cost = prev_costs[col];
             up_cost   = prev_costs[col+1];
             left_cost = curr_costs[col];
@@ -55,29 +62,32 @@ float full_dtw_cost(const stream_t* restrict a, const stream_t* restrict b) {
                 curr_costs[col+1] = dt + left_cost;
             }
         }
-        memcpy(&prev_costs, &curr_costs, (b_n+1)*sizeof(float));
+        memcpy(&prev_costs, &curr_costs, (b_n+1)*sizeof(int32_t));
     }
     return curr_costs[b_n];
 }
 
 // Idea for optimization: can we hand-unroll this into SSE registers with layout [cell_cost, diag_cost, up_cost, left_cost]
 warp_info_t* _full_dtw(const stream_t* restrict a, const stream_t* restrict b) {
-    const float* a_data = a->data;
-    const float* b_data = b->data;
+    const int32_t* a_lats = a->lats;
+    const int32_t* a_lngs = a->lngs;
+    const int32_t* b_lats = b->lats;
+    const int32_t* b_lngs = b->lngs;
     const size_t a_n = a->n;
     const size_t b_n = b->n;
-    float* dp_table = malloc( a_n * b_n * sizeof(float));
-    float diag_cost, up_cost, left_cost;
-    float lat_diff, lng_diff, dt;
+
+    int32_t* dp_table = malloc( a_n * b_n * sizeof(int32_t));
+    int32_t diag_cost, up_cost, left_cost;
+    int32_t lat_diff, lng_diff, dt;
     size_t idx;
     for (size_t row = 0; row < a_n; row++) {
         for (size_t col = 0; col < b_n; col++) {
-            lat_diff = b_data[2*col + 0] - a_data[2*row + 0];
-            lng_diff = b_data[2*col + 1] - a_data[2*row + 1];
+            lat_diff = b_lats[col] - a_lats[row];
+            lng_diff = b_lngs[col] - a_lngs[row];
             dt = (lng_diff * lng_diff) + (lat_diff * lat_diff);
-            diag_cost = ( row == 0 || col == 0) ? FLT_MAX : dp_table[(row-1)*b_n + (col-1)];
-            up_cost =   ( row == 0            ) ? FLT_MAX : dp_table[(row-1)*b_n + (col-0)];
-            left_cost = (             col == 0) ? FLT_MAX : dp_table[(row-0)*b_n + (col-1)];
+            diag_cost = ( row == 0 || col == 0) ? INT32_MAX : dp_table[(row-1)*b_n + (col-1)];
+            up_cost =   ( row == 0            ) ? INT32_MAX : dp_table[(row-1)*b_n + (col-0)];
+            left_cost = (             col == 0) ? INT32_MAX : dp_table[(row-0)*b_n + (col-1)];
             idx = row*b_n + col;
             if (idx == 0) {
                 dp_table[idx] = dt;
@@ -102,9 +112,9 @@ warp_info_t* _full_dtw(const stream_t* restrict a, const stream_t* restrict b) {
     end_cols[u] = v;
     /* Trace back through the DP table to recover the warp path. */
     while (u > 0 || v > 0) {
-        diag_cost = ( u == 0 || v == 0) ? FLT_MAX : dp_table[(u-1)*b_n + (v-1)];
-        up_cost   = ( u == 0          ) ? FLT_MAX : dp_table[(u-1)*b_n + (v-0)];
-        left_cost = (           v == 0) ? FLT_MAX : dp_table[(u-0)*b_n + (v-1)];
+        diag_cost = ( u == 0 || v == 0) ? INT32_MAX : dp_table[(u-1)*b_n + (v-1)];
+        up_cost   = ( u == 0          ) ? INT32_MAX : dp_table[(u-1)*b_n + (v-0)];
+        left_cost = (           v == 0) ? INT32_MAX : dp_table[(u-0)*b_n + (v-1)];
         if (diag_cost <= up_cost && diag_cost <= left_cost) {
             start_cols[u] = v;
             end_cols[u-1] = v-1;
@@ -120,7 +130,7 @@ warp_info_t* _full_dtw(const stream_t* restrict a, const stream_t* restrict b) {
     }
     warp_info_t* warp_info = malloc(sizeof(warp_info_t));
     warp_info->path_mask = mask;
-    float final_cost = dp_table[a_n*b_n - 1];
+    int32_t final_cost = dp_table[a_n*b_n - 1];
     warp_info->warp_cost=final_cost;
     free(dp_table);
     return warp_info;
