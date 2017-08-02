@@ -5,11 +5,11 @@ else ()
 endif ()
 
 set(STREAMGEO_SRC
-        io.c
+        streamio.c
         stridedmask.c
         alignment.c
         stream.c)
 
-add_library(${STREAMGEO_LIB_NAME} ${STREAMGEO_LIB_TYPE} ${STREAMGEO_SRC})
-install(TARGETS ${STREAMGEO_LIB_NAME} DESTINATION lib)
-set_target_properties(${STREAMGEO_LIB_NAME} PROPERTIES LIBRARY_OUTPUT_DIRECTORY "..") 
+#add_library(${STREAMGEO_LIB_NAME} ${STREAMGEO_LIB_TYPE} ${STREAMGEO_SRC})
+#install(TARGETS ${STREAMGEO_LIB_NAME} DESTINATION lib)
+#set_target_properties(${STREAMGEO_LIB_NAME} PROPERTIES LIBRARY_OUTPUT_DIRECTORY "..")

@@ -1,7 +1,7 @@
-#ifndef IO_H
-#define IO_H
+#ifndef STREAM_IO_H
+#define STREAM_IO_H
 
-#include <cstreamgeo/cstreamgeo.h>
+#include <cstreamgeo.h>
 
 /**
  * Allocate space for a new collection of streams.

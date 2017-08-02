@@ -1,6 +1,8 @@
-#include <cstreamgeo/cstreamgeo.h>
-#include <cstreamgeo/stridedmask.h>
-#include <cstreamgeo/utilc.h>
+#include <cstreamgeo.h>
+#include <stridedmask.h>
+#include <utilc.h>
+#include <streamio.h>
+
 #include <limits.h>
 #include <float.h>
 #include <math.h>
@@ -8,7 +10,6 @@
 #include <immintrin.h>
 #include <stdbool.h>
 #include <string.h>
-#include <cstreamgeo/io.h>
 #include <stdint.h>
 
 #define PI 3.1415926535f

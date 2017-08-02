@@ -1,5 +1,5 @@
-#include <cstreamgeo/stridedmask.h>
-#include <cstreamgeo/utilc.h>
+#include <stridedmask.h>
+#include <utilc.h>
 #include <stdio.h>
 
 strided_mask_t* strided_mask_create(const size_t n_rows, const size_t n_cols) {

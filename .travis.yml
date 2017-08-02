@@ -2,7 +2,6 @@ language: c
 sudo: false
 compiler:
   - clang
-  - gcc
 
 branches:
   only:
@@ -12,4 +11,9 @@ before_install:
   - echo "Travis CI producing a build of streamgeo."
 
 script:
-  - cd cstreamgeo && mkdir -p build && cd build && cmake .. && make -j && make test
+  - cd cstreamgeo
+  - mkdir -p build
+  - cd build
+  - cmake ..
+  - make -j
+  - make test

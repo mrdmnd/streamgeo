@@ -43,8 +43,7 @@
 *.pdb
 *.DS_Store
 
-cstreamgeo/tests/config.h
-cstreamgeo/benchmarks/config.h
+benchmark_config.h
 
 .idea/
 .idea

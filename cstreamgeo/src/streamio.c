@@ -1,5 +1,5 @@
-#include <cstreamgeo/cstreamgeo.h>
-#include <cstreamgeo/io.h>
+#include <cstreamgeo.h>
+#include <streamio.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
