@@ -1,13 +1,15 @@
 language: c
-sudo: true
+sudo: false
 compiler:
   - clang
+  - gcc
 
 branches:
   only:
     - master
 
 before_install:
-  - git clone https://github.com/RoaringBitmap/CRoaring.git && cd CRoaring && mkdir -p build && cd build && cmake .. && make -j && sudo make install && sudo ldconfig && cd ../..
+  - echo "Travis CI producing a build of streamgeo."
+
 script:
   - cd cstreamgeo && mkdir -p build && cd build && cmake .. && make -j && make test

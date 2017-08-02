@@ -1,0 +1,4 @@
+add_c_test(stream_unit_test)
+add_c_test(alignment_unit_test)
+add_c_test(strided_mask_unit_test)
+add_c_test(io_unit_test)
