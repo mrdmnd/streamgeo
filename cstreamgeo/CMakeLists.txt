@@ -21,8 +21,8 @@ find_package(Options)
 find_package(LTO)
 find_package(CUDA)
 
-#find_package(CUDA QUIET REQUIRED)
-#cuda_add_executable(hellocuda src/hellocuda.cu)
+find_package(CUDA QUIET REQUIRED)
+cuda_add_executable(hellocuda src/hellocuda.cu)
 
 include_directories(include /usr/local/include/roaring/)
 link_directories(/usr/local/lib/)

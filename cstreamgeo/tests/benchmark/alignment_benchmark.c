@@ -1,13 +1,13 @@
-#include <cstreamgeo/cstreamgeo.h>
-#include <cstreamgeo/stridedmask.h>
-#include <cstreamgeo/io.h>
+#include <cstreamgeo.h>
+#include <stridedmask.h>
+#include <streamio.h>
 #include <stdio.h>
 #include <math.h>
 #include <time.h>
 #include <string.h>
-#include <cstreamgeo/utilc.h>
+#include <utilc.h>
 #include <assert.h>
-#include "config.h" // Contains make-time generated benchmark_data_dir #define macro
+#include "benchmark_config.h" // Contains make-time generated benchmark_data_dir #define macro
 
 
 void full_random_alignment_benchmark(const size_t u_n, const size_t v_n, const size_t iterations) {
