@@ -1,5 +1,5 @@
 cmake_minimum_required (VERSION 2.8)
-project(cstreamgeo LANGUAGE C)
+project(cstreamgeo)
 
 set(CMAKE_MACOSX_RPATH OFF)
 

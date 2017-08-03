@@ -5,6 +5,10 @@
 
 /* ---------------- Core data structure types ---------------- */
 
+// A "GEOHASH" is a 64
+typedef int64_t point_t;
+// 1  0  0  1  0  0  1  0  0  1  0  0  1  0  0  1  0  0  1  0  0  1  0  0  1  0  0  1  0  0  1  0 // latitude component are even-indexed bits
+//  0  1  0  1  0  1  0  1  0  1  0  1  0  1  0  1  0  1  0  1  0  1  0  1  0  1  0  1  0  1  0  1
 
 typedef struct {
     int32_t* lats;       // Encoded as 10^6 * degree value (i.e. 90 degrees ==> 90000000)
@@ -26,6 +30,7 @@ typedef struct {
 
 /* ---------------- Stream Utility Functions ---------------- */
 
+void distance
 
 /**
  * Creates a new stream with n points.
