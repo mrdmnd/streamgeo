@@ -5,21 +5,28 @@
 
 /* ---------------- Core data structure types ---------------- */
 
-// A "GEOHASH" is a 64
-typedef int64_t point_t;
-// 1  0  0  1  0  0  1  0  0  1  0  0  1  0  0  1  0  0  1  0  0  1  0  0  1  0  0  1  0  0  1  0 // latitude component are even-indexed bits
-//  0  1  0  1  0  1  0  1  0  1  0  1  0  1  0  1  0  1  0  1  0  1  0  1  0  1  0  1  0  1  0  1
+enum stream_type_t {Position, Time, Elevation, Power, Heartrate};
 
 typedef struct {
-    int32_t* lats;       // Encoded as 10^6 * degree value (i.e. 90 degrees ==> 90000000)
-    int32_t* lngs;
-    size_t n;            // Number of points in the stream.
+    const int32_t lat;         // 10^6 * underling float data (i.e. -38.591592 ==> -38591592)
+    const int32_t lng;
+} position_t;
+
+typedef struct {
+    const void* data;          // Stream data
+    const size_t n;            // Number of points in the stream.
+    const enum stream_type_t stream_type; // Stream type, for serialization + deserialization purposes.
 } stream_t;
 
 typedef struct {
-    stream_t** data;     // Buffer containing pointers to streams.
-    size_t n;            // Number of streams in the collection
-} stream_collection_t;
+    const stream_t* streams;   // Streams data
+    const size_t n;            // Number of streams in the grouping
+} stream_set_t;
+
+typedef struct {
+    const stream_set_t* stream_sets;  // Collection of stream_sets
+    const size_t n;                   // Number of stream_sets in collection
+} stream_set_collection_t;
 
 typedef struct {
     size_t* index_pairs; // Indices: [row_0, col_0, row_1, col_1, ..., row_N-1, col_N-1]
