@@ -10,7 +10,7 @@ enum stream_type_t {Position, Time, Elevation, Power, Heartrate};
 typedef struct {
     const int32_t lat;         // 10^6 * underling float data (i.e. -38.591592 ==> -38591592)
     const int32_t lng;
-} position_t;
+} point_t;
 
 typedef struct {
     const void* data;          // Stream data

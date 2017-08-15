@@ -21,6 +21,12 @@ stream_t* stream_create(const size_t n) {
     return stream;
 }
 
+void stream_destroy(const stream_t* stream) {
+    free(stream->lats);
+    free(stream->lngs);
+    free((void*) stream);
+}
+
 stream_t* stream_create_from_list(const size_t n, ...) {
     va_list args;
     va_start(args, n);
@@ -32,11 +38,7 @@ stream_t* stream_create_from_list(const size_t n, ...) {
     return stream;
 }
 
-void stream_destroy(const stream_t* stream) {
-    free(stream->lats);
-    free(stream->lngs);
-    free((void*) stream);
-}
+
 
 void stream_printf(const stream_t* stream) {
     const size_t n = stream->n;

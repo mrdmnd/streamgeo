@@ -99,29 +99,28 @@ typedef struct strided_mask_s {
 } strided_mask_t;
 
 /**
- * Creates a new empty strided_mask object with n_rows and n_cols.
- * Allocates memory, caller must handle cleanup.
+ * Initializes a new strided_mask object with n_rows and n_cols.
+ * @param mask A pointer to a strided mask object (either on the stack, or the heap, we don't care)
  * @param n_rows
  * @param n_cols
- * @return An unpopulated strided mask object.
  */
-strided_mask_t* strided_mask_create(const size_t n_rows, const size_t n_cols);
+void strided_mask_init(strided_mask_t* mask, const size_t n_rows, const size_t n_cols);
 
 /**
- * Creates a strided mask object from a list of start, end column indices
- * Allocates memory, caller must handle cleanup.
+ * Initializes a strided mask object from a list of start, end column indices
+ * @param mask A pointer to a strided mask object
  * @param n_rows
  * @param n_cols
  * @param ... Input data; first n_rows of var-args are start_cols, next n_rows of var-args are end_cols
  * @return A populated strided mask object.
  */
-strided_mask_t* strided_mask_create_from_list(const size_t n_rows, const size_t n_cols, ...);
+void strided_mask_init_from_list(strided_mask_t* mask, const size_t n_rows, const size_t n_cols, ...);
 
 /**
- * Destroys the input mask object and frees its memory
+ * Frees memory allocated by strided_mask object for row and column pointer storage.
  * @param mask
  */
-void strided_mask_destroy(const strided_mask_t* mask);
+void strided_mask_release(const strided_mask_t* mask);
 
 /**
  * Prints the input mask object.
@@ -200,9 +199,11 @@ size_t* strided_mask_to_index_pairs(const strided_mask_t* mask, size_t* path_len
  * 8 . . @ @ * * * * * * @ @
  * 9 . . @ @ * * * * * * @ @
  *
- * @param mask
+ * @param mask_in
+ * @param row_parity
+ * @param col_parity
  * @param radius
- * @return A new, expanded mask.
+ * @param mask_out
  */
-strided_mask_t* strided_mask_expand(const strided_mask_t* mask, const int row_parity, const int col_parity, const size_t radius);
+void strided_mask_expand(const strided_mask_t* mask_in, const int row_parity, const int col_parity, const size_t radius, strided_mask_t* mask_out);
 #endif
