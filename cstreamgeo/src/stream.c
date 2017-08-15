@@ -5,7 +5,6 @@
 #include <stdio.h>
 #include <math.h>
 #include <assert.h>
-#include <stdint.h>
 
 /**
  * General functions for interacting with a single stream.
@@ -13,102 +12,159 @@
  */
 
 
-stream_t* stream_create(const size_t n) {
-    stream_t* stream = malloc(sizeof(stream_t));
-    stream->n = n;
-    stream->lats = malloc(n * sizeof(int32_t));
-    stream->lngs = malloc(n * sizeof(int32_t));
-    return stream;
+void stream_init(stream_t* stream, const size_t n, const stream_type_t stream_type) {
+    switch(stream_type) {
+        case POSITION:
+            stream->stream_contents.position_stream.points = malloc(n * sizeof(point_t));
+            stream->stream_contents.position_stream.n = n;
+            break;
+        case TIME:
+            stream->stream_contents.timestamp_stream.timestamps = malloc(n * sizeof(timestamp_t));
+            stream->stream_contents.timestamp_stream.n = n;
+            break;
+        case ELEVATION:
+            stream->stream_contents.elevation_stream.elevations = malloc(n * sizeof(elevation_t));
+            stream->stream_contents.elevation_stream.n = n;
+            break;
+    }
 }
 
-void stream_destroy(const stream_t* stream) {
-    free(stream->lats);
-    free(stream->lngs);
-    free((void*) stream);
-}
-
-stream_t* stream_create_from_list(const size_t n, ...) {
+void stream_init_from_list(stream_t* stream, const size_t n, const stream_type_t stream_type, ...) {
     va_list args;
     va_start(args, n);
-    stream_t* stream = stream_create(n);
-    for (size_t i = 0; i < 2 * n; i++) {
-        stream->lats[i] = (int32_t)(1000000*va_arg(args, double));
+    // Init blank storage
+    stream_init(stream, n, stream_type);
+    // Fill storage with data
+    switch(stream_type) {
+        case POSITION:
+            for (size_t i = 0; i < n; i++) {
+                int32_t lat = (int32_t)(va_arg(args, double));
+                int32_t lng = (int32_t)(va_arg(args, double));
+                point_t point = (point_t) {lat, lng};
+                stream->stream_contents.position_stream.points[i] = point;
+            }
+            break;
+        case TIME:
+            for (size_t i = 0; i < n; i++) {
+                timestamp_t time = va_arg(args, int);
+                stream->stream_contents.timestamp_stream.timestamps[i] = time;
+            }
+            break;
+        case ELEVATION:
+            for (size_t i = 0; i < n; i++) {
+                elevation_t elevation = va_arg(args, int);
+                stream->stream_contents.elevation_stream.elevations[i] = elevation;
+            }
+            break;
     }
     va_end(args);
-    return stream;
 }
 
+void stream_release(const stream_t* stream) {
+    switch(stream->stream_type) {
+        case POSITION:
+            free(stream->stream_contents.position_stream.points);
+            break;
+        case TIME:
+            free(stream->stream_contents.timestamp_stream.timestamps);
+            break;
+        case ELEVATION:
+            free(stream->stream_contents.elevation_stream.elevations);
+            break;
+    }
 
+}
 
 void stream_printf(const stream_t* stream) {
-    const size_t n = stream->n;
-    const int32_t* lats = stream->lats;
-    const int32_t* lngs = stream->lats;
-    printf("Stream contains %zu points: [", n);
-    for (size_t i = 0; i < n; i++) {
-        printf("[%f, %f], ", lats[i]/1000000.0, lngs[i]/1000000.0);
+    position_stream_t a = stream->stream_contents.position_stream;
+    timestamp_stream_t b = stream->stream_contents.timestamp_stream;
+    elevation_stream_t c = stream->stream_contents.elevation_stream;
+    switch(stream->stream_type) {
+        case POSITION:
+            printf("Stream contains %zu position points: [", a.n);
+            for (size_t i = 0; i < a.n; i++) {
+                point_t p = a.points[i];
+                printf("[%i, %i], ", p.lat, p.lng);
+            }
+            printf("]\n");
+            break;
+        case TIME:
+            printf("Stream contains %zu timestamp points: [", b.n);
+            for (size_t i = 0; i < b.n; i++) {
+                timestamp_t timestamp = b.timestamps[i];
+                printf("%zu, ", (size_t) timestamp);
+            }
+            printf("]\n");
+            break;
+        case ELEVATION:
+            printf("Stream contains %zu elevation points: [", c.n);
+            for (size_t i = 0; i < c.n; i++) {
+                elevation_t elevation = c.elevations[i];
+                printf("%zu, ", (size_t) elevation);
+            }
+            printf("]\n");
+            break;
     }
-    printf("]\n");
 }
 
-void stream_geojson_printf(const stream_t* stream) {
-    const size_t n = stream->n;
-    const int32_t* lats = stream->lats;
-    const int32_t* lngs = stream->lngs;
+void stream_geojson_printf(const position_stream_t* stream) {
+    point_t p;
     printf("{ \"type\": \"Feature\", \"properties\": {}, \"geometry\": { \"type\": \"LineString\", \"coordinates\": [");
-    for (size_t i = 0; i < n-1; i++) {
-        printf("[%f, %f], ", lngs[i]/1000000.0, lats[i]/1000000.0);
+    for (size_t i = 0; i < stream->n-1; i++) {
+        p = stream->points[i];
+        printf("[%i, %i], ", p.lng, p.lat);
     }
-    printf("[%f, %f]]", lngs[n-1]/1000000.0, lats[n-1]/1000000.0);
+    p = stream->points[stream->n - 1];
+    printf("[%i, %i]]", p.lng, p.lat);
     printf("}}\n");
 }
 
-float stream_distance(const stream_t* stream) {
+double stream_distance(const position_stream_t* stream) {
     const size_t n = stream->n;
-    const int32_t* lats = stream->lats;
-    const int32_t* lngs = stream->lngs;
+    const point_t* points = stream->points;
     assert(n >= 2);
-    float sum = 0.0f;
-    int32_t lat_diff;
-    int32_t lng_diff;
+    double sum = 0.0f;
+    point_t current;
+    point_t next;
+    point_t diff;
     for (size_t i = 0; i < n - 1; i++) {
-        lat_diff = lats[i + 1] - lats[i];
-        lng_diff = lngs[i + 1] - lngs[i];
-        sum += sqrt((lng_diff * lng_diff) + (lat_diff * lat_diff));
+        current = points[i];
+        next = points[i+1];
+        diff = (point_t){next.lat - current.lat, next.lng - current.lng};
+        sum += sqrtl(diff.lat * diff.lat + diff.lng * diff.lng);
     }
     return sum;
 }
 
-float* stream_sparsity_create(const stream_t *stream) {
+void stream_sparsity_init(const position_stream_t* stream, float* sparsity_out) {
     const size_t s_n = stream->n;
-    const int32_t* lats = stream->lats;
-    const int32_t* lngs = stream->lngs;
-    float* sparsity = malloc(sizeof(float) * s_n);
-
-    const float optimal_spacing = stream_distance(stream) / (s_n - 1);
+    const point_t* points = stream->points;
+    const float optimal_spacing = (float) (stream_distance(stream) / (s_n - 1));
     const float two_over_pi = 0.63661977236f;
     int i, j, k;
-    float lat_diff, lng_diff, v;
+    float v;
+    point_t diff;
     for (int n = 0; n < (int) s_n; n++) {
         i = (n - 1) < 0 ? 1 : n - 1;
         j = n;
         k = (n + 1) > (int) s_n - 1 ? (int) s_n - 2 : n + 1;
-        lat_diff = lats[j] - lats[i];
-        lng_diff = lngs[j] - lngs[i];
-        float d1 = sqrtf((lng_diff * lng_diff) + (lat_diff * lat_diff));
-        lat_diff = lats[k] - lats[j];
-        lng_diff = lngs[k] - lngs[j];
-        float d2 = sqrtf((lng_diff * lng_diff) + (lat_diff * lat_diff));
+        point_t p_i = points[i];
+        point_t p_j = points[j];
+        point_t p_k = points[k];
+        diff = (point_t){p_j.lat - p_i.lat, p_j.lng - p_i.lng};
+        float d1 = sqrtf(diff.lng * diff.lng + diff.lat * diff.lat);
+        diff = (point_t){p_k.lat - p_j.lat, p_k.lng - p_j.lng};
+        float d2 = sqrtf(diff.lng * diff.lng + diff.lat * diff.lat);
         v = (d1 + d2) / (2 * optimal_spacing);
-        sparsity[j] = (float) (1.0 - two_over_pi * atan(v));
+        sparsity_out[j] = (float) (1.0 - two_over_pi * atan(v));
     }
-    return sparsity;
 }
 
-void stream_statistics_printf(const stream_t* stream) {
+void stream_statistics_printf(const position_stream_t* stream) {
     const size_t n = stream->n;
-    const float distance = stream_distance(stream);
-    const float* sparsity = stream_sparsity_create(stream);
+    const double distance = stream_distance(stream);
+    float* sparsity = malloc(n * sizeof(float));
+    stream_sparsity_init(stream, sparsity);
     printf("Stream contains %zu points. Total distance is %f. Sparsity array is: [", n, distance);
     for (size_t i = 0; i < n; i++) {
         printf("%f, ", sparsity[i]);
@@ -117,24 +173,23 @@ void stream_statistics_printf(const stream_t* stream) {
     free((void*) sparsity);
 }
 
-float _point_line_distance(float px, float py, float sx, float sy, float ex, float ey) {
-    return (sx == ex && sy == ey) ?
-           (px - sx) * (px - sx) + (py - sy) * (py - sy) :
-           fabsf((ex - sx) * (sy - py) - (sx - px) * (ey - sy)) / sqrtf((ex - sx) * (ex - sx) + (ey - sy) * (ey - sy));
+float _point_line_distance(point_t p, point_t s, point_t e) {
+    return (s.lat == e.lat && s.lng == e.lng) ?
+           (p.lat - s.lat) * (p.lat - s.lat) + (p.lng - s.lng) * (p.lng - s.lng) :
+           abs((e.lat - s.lat) * (s.lng - p.lng) - (s.lat - p.lat) * (e.lng - s.lng)) / sqrtf((e.lat - s.lat) * (e.lat - s.lat) + (e.lng - s.lng) * (e.lng - s.lng));
 }
 
-void _douglas_peucker(const stream_t* stream, const size_t start, const size_t end, const float epsilon, bool* indices) {
-    const int32_t* lats = stream->lats;
-    const int32_t* lngs = stream->lngs;
+void _douglas_peucker(const position_stream_t* stream, const size_t start, const size_t end, const float epsilon, bool* indices) {
+    const point_t* points = stream->points;
     float d_max = 0.0f;
     size_t index_max = start;
-    float sx = lats[start];
-    float sy = lngs[start];
-    float ex = lats[end];
-    float ey = lngs[end];
+    point_t s = points[start];
+    point_t e = points[end];
     // Identify the point with largest distance from its neighbors.
+    point_t p;
     for (size_t i = start + 1; i < end; ++i) {
-        float d = _point_line_distance(lats[i], lngs[i], sx, sy, ex, ey);
+        p = points[i];
+        float d = _point_line_distance(p, s, e);
         if (d > d_max) {
             index_max = i;
             d_max = d;
@@ -156,10 +211,9 @@ void _douglas_peucker(const stream_t* stream, const size_t start, const size_t e
 }
 
 
-void downsample_rdp(stream_t* stream, const float epsilon) {
+void downsample_rdp(position_stream_t* stream, const float epsilon) {
     size_t input_n = stream->n;
-    int32_t* input_lats = stream->lats;
-    int32_t* input_lngs = stream->lngs;
+    point_t* input_points = stream->points;
 
     bool* indices = calloc(input_n, sizeof(bool));
     indices[0] = 1;
@@ -171,14 +225,12 @@ void downsample_rdp(stream_t* stream, const float epsilon) {
     size_t n = 0;
     for (size_t i = 0; i < input_n; i++) {
         if (indices[i]) {
-            input_lats[n] = input_lats[i];
-            input_lngs[n] = input_lngs[i];
+            input_points[n] = input_points[i];
             n++;
         }
     }
     stream->n = n;
-    stream->lats = realloc(input_lats, n * sizeof(int32_t));
-    stream->lngs = realloc(input_lngs, n * sizeof(int32_t));
+    stream->points = realloc(input_points, n * sizeof(point_t));
     free(indices);
 }
 
