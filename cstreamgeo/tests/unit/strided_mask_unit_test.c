@@ -24,7 +24,7 @@ void create_test() {
      * 3 . . * * * *
      * 4 . . * * * *
      */
-    strided_mask_t mask2; =
+    strided_mask_t mask2;
     strided_mask_init_from_list(&mask2, 5, 6,   0, 1, 1, 2, 2,  2, 3, 3, 5, 5);
     strided_mask_printf(&mask2);
     strided_mask_release(&mask2);
@@ -56,20 +56,32 @@ void mask_to_index_pairs_test() {
     strided_mask_init_from_list(&mask, 5, 6,  0, 0, 1, 1, 4,  0, 1, 1, 3, 5);
     strided_mask_printf(&mask);
 
+    size_t* warp_path = malloc(2 * (mask.n_rows + mask.n_cols - 1) * sizeof(size_t));
+    const size_t path_length = strided_mask_to_index_pairs(&mask, warp_path);
 
-
-    size_t* path_length =  malloc(sizeof(size_t));
-    const size_t* warp_path = strided_mask_to_index_pairs(&mask, path_length);
-
-    printf("Warp path has length %zu: [", *path_length);
-    for (size_t i = 0; i < *path_length*2; i+=2) {
+    printf("Warp path has length %zu: [", path_length);
+    for (size_t i = 0; i < 2*path_length; i+=2) {
        printf("(%zu,%zu), ", warp_path[i], warp_path[i+1]);
     }
     printf("]\n");
-    free(path_length);
     free((void*) warp_path);
+    strided_mask_release(&mask);
+}
+
+void strided_expand_test_base(const size_t row_parity, const size_t col_parity, const size_t radius) {
+    const int n_rows = 5;
+    const int n_cols = 6;
+    strided_mask_t mask;
+    strided_mask_init_from_list(&mask, n_rows, n_cols,  1, 1, 1, 2, 2,  2, 3, 3, 3, 4);
+    strided_mask_printf(&mask);
+
+    strided_mask_t expanded;
+    strided_mask_init(&expanded, 2*n_rows + row_parity, 2*n_cols + col_parity);
+    strided_mask_expand(&mask, row_parity, col_parity, radius, &expanded);
+    strided_mask_printf(&expanded);
 
     strided_mask_release(&mask);
+    strided_mask_release(&expanded);
 }
 
 void expand_radius_zero_test() {
@@ -94,21 +106,7 @@ void expand_radius_zero_test() {
      * 8 . . . . * * * * * * . .
      * 9 . . . . * * * * * * . .
      */
-    const int n_rows = 5;
-    const int n_cols = 6;
-    strided_mask_t mask;
-    strided_mask_init_from_list(&mask, n_rows, n_cols,  1, 1, 1, 2, 2,  2, 3, 3, 3, 4);
-    strided_mask_printf(&mask);
-
-    const int row_parity = 0;
-    const int col_parity = 0;
-    const size_t radius = 0;
-    strided_mask_t expanded;
-    strided_mask_init(&expanded, 2*n_rows + row_parity, 2*n_cols + col_parity);
-    strided_mask_expand(&mask, row_parity, col_parity, radius, &expanded);
-    strided_mask_printf(&expanded);
-    strided_mask_release(&mask);
-    strided_mask_release(&expanded);
+    strided_expand_test_base(0, 0, 0);
 }
 
 void expand_radius_zero_row_parity_test() {
@@ -133,16 +131,7 @@ void expand_radius_zero_row_parity_test() {
      * 9 . . . . * * * * * * . .
      * 0 . . . . . . . . . . . .
      */
-
-    strided_mask_t* mask = strided_mask_create_from_list(5, 6,  1, 1, 1, 2, 2,  2, 3, 3, 3, 4);
-    strided_mask_printf(mask);
-    const int row_parity = 1;
-    const int col_parity = 0;
-    const size_t radius = 0;
-    strided_mask_t* expanded = strided_mask_expand(mask, row_parity, col_parity, radius);
-    strided_mask_printf(expanded);
-    strided_mask_destroy(mask);
-    strided_mask_destroy(expanded);
+    strided_expand_test_base(1, 0, 0);
 }
 
 void expand_radius_zero_col_parity_test() {
@@ -166,15 +155,7 @@ void expand_radius_zero_col_parity_test() {
      * 8 . . . . * * * * * * . . .
        9 . . . . * * * * * * . . .
      */
-    strided_mask_t* mask = strided_mask_create_from_list(5, 6,  1, 1, 1, 2, 2,  2, 3, 3, 3, 4);
-    strided_mask_printf(mask);
-    const int row_parity = 0;
-    const int col_parity = 1;
-    const size_t radius = 0;
-    strided_mask_t* expanded = strided_mask_expand(mask, row_parity, col_parity, radius);
-    strided_mask_printf(expanded);
-    strided_mask_destroy(mask);
-    strided_mask_destroy(expanded);
+    strided_expand_test_base(0, 1, 0);
 }
 
 void expand_radius_zero_row_col_parity_test() {
@@ -199,15 +180,7 @@ void expand_radius_zero_row_col_parity_test() {
      * 9 . . . . * * * * * * . . .
      * 0 . . . . . . . . . . . . .
      */
-    strided_mask_t* mask = strided_mask_create_from_list(5, 6,  1, 1, 1, 2, 2,  2, 3, 3, 3, 4);
-    strided_mask_printf(mask);
-    const int row_parity = 1;
-    const int col_parity = 1;
-    const size_t radius = 0;
-    strided_mask_t* expanded = strided_mask_expand(mask, row_parity, col_parity, radius);
-    strided_mask_printf(expanded);
-    strided_mask_destroy(mask);
-    strided_mask_destroy(expanded);
+    strided_expand_test_base(1, 1, 0);
 }
 
 void expand_radius_one_test() {
@@ -232,16 +205,7 @@ void expand_radius_one_test() {
      * 8 . . . * * * * * * * * .
      * 9 . . . * * * * * * * * .
      */
-    strided_mask_t* mask = strided_mask_create_from_list(5, 6,  1, 1, 1, 2, 2,  2, 3, 3, 3, 4);
-    strided_mask_printf(mask);
-    const int row_parity = 0;
-    const int col_parity = 0;
-    const size_t radius = 1;
-    strided_mask_t* expanded = strided_mask_expand(mask, row_parity, col_parity, radius);
-    strided_mask_printf(expanded);
-    strided_mask_destroy(mask);
-    strided_mask_destroy(expanded);
-
+    strided_expand_test_base(0, 0, 1);
 }
 
 void expand_radius_one_row_parity_test() {
@@ -267,16 +231,7 @@ void expand_radius_one_row_parity_test() {
      * 9 . . . * * * * * * * * .
      * 0 . . . * * * * * * * * .
      */
-    strided_mask_t* mask = strided_mask_create_from_list(5, 6,  1, 1, 1, 2, 2,  2, 3, 3, 3, 4);
-    strided_mask_printf(mask);
-    const int row_parity = 1;
-    const int col_parity = 0;
-    const size_t radius = 1;
-    strided_mask_t* expanded = strided_mask_expand(mask, row_parity, col_parity, radius);
-    strided_mask_printf(expanded);
-    strided_mask_destroy(mask);
-    strided_mask_destroy(expanded);
-
+    strided_expand_test_base(1, 0, 1);
 }
 
 void expand_radius_one_col_parity_test() {
@@ -301,16 +256,7 @@ void expand_radius_one_col_parity_test() {
      * 8 . . . * * * * * * * * . .
      * 9 . . . * * * * * * * * . .
      */
-    strided_mask_t* mask = strided_mask_create_from_list(5, 6,  1, 1, 1, 2, 2,  2, 3, 3, 3, 4);
-    strided_mask_printf(mask);
-    const int row_parity = 0;
-    const int col_parity = 1;
-    const size_t radius = 1;
-    strided_mask_t* expanded = strided_mask_expand(mask, row_parity, col_parity, radius);
-    strided_mask_printf(expanded);
-    strided_mask_destroy(mask);
-    strided_mask_destroy(expanded);
-
+    strided_expand_test_base(0, 1, 1);
 }
 
 void expand_radius_one_row_col_parity_test() {
@@ -336,16 +282,7 @@ void expand_radius_one_row_col_parity_test() {
      * 9 . . . * * * * * * * * . .
      * 0 . . . * * * * * * * * . .
      */
-    strided_mask_t* mask = strided_mask_create_from_list(5, 6,  1, 1, 1, 2, 2,  2, 3, 3, 3, 4);
-    strided_mask_printf(mask);
-    const int row_parity = 1;
-    const int col_parity = 1;
-    const size_t radius = 1;
-    strided_mask_t* expanded = strided_mask_expand(mask, row_parity, col_parity, radius);
-    strided_mask_printf(expanded);
-    strided_mask_destroy(mask);
-    strided_mask_destroy(expanded);
-
+    strided_expand_test_base(1, 1, 1);
 }
 
 void expand_radius_two_test() {
@@ -370,15 +307,7 @@ void expand_radius_two_test() {
      * 8 . . * * * * * * * * * *
      * 9 . . * * * * * * * * * *
      */
-    strided_mask_t* mask = strided_mask_create_from_list(5, 6,  1, 1, 1, 2, 2,  2, 3, 3, 3, 4);
-    strided_mask_printf(mask);
-    const int row_parity = 0;
-    const int col_parity = 0;
-    const size_t radius = 2;
-    strided_mask_t* expanded = strided_mask_expand(mask, row_parity, col_parity, radius);
-    strided_mask_printf(expanded);
-    strided_mask_destroy(mask);
-    strided_mask_destroy(expanded);
+    strided_expand_test_base(0, 0, 2);
 }
 void expand_radius_two_row_col_parity_test() {
     /* Input:
@@ -403,15 +332,7 @@ void expand_radius_two_row_col_parity_test() {
      * 9 . . * * * * * * * * * * .
      * 0 . . * * * * * * * * * * .
      */
-    strided_mask_t* mask = strided_mask_create_from_list(5, 6,  1, 1, 1, 2, 2,  2, 3, 3, 3, 4);
-    strided_mask_printf(mask);
-    const int row_parity = 1;
-    const int col_parity = 1;
-    const size_t radius = 2;
-    strided_mask_t* expanded = strided_mask_expand(mask, row_parity, col_parity, radius);
-    strided_mask_printf(expanded);
-    strided_mask_destroy(mask);
-    strided_mask_destroy(expanded);
+    strided_expand_test_base(1, 1, 2);
 }
 
 int main() {

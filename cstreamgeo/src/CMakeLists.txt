@@ -5,10 +5,10 @@ else ()
 endif ()
 
 set(STREAMGEO_SRC
-        streamio.c
-        stridedmask.c
-        alignment.c
-        stream.c)
+        #streamio.c
+        stridedmask.c)
+        #alignment.c
+        #stream.c)
 
 add_library(${STREAMGEO_LIB_NAME} ${STREAMGEO_LIB_TYPE} ${STREAMGEO_SRC})
 install(TARGETS ${STREAMGEO_LIB_NAME} DESTINATION lib)

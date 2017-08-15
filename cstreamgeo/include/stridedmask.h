@@ -64,7 +64,7 @@
  *
  * A path_mask is a special kind of strided mask where
  * 1) start_cols[0] = 0
- * 2) end_cols[n_rows-1] = n_cols-1t
+ * 2) end_cols[n_rows-1] = n_cols-1
  * 3) end_cols[i-1] <= start_cols[i] <= end_cols[i-1] + 1 for all rows i
  *
  * VALID
@@ -131,12 +131,11 @@ void strided_mask_printf(const strided_mask_t* mask);
 /**
  * This function converts a (presumed) valid path mask to a sequence of index pairs
  * Also sets the value of path length to the number of points in the path.
- * Allocates memory; caller must handle cleanup.
  * @param mask Input math
- * @param path_length Set via side-effects.
- * @return An array of [i_0, j_0, i_1, j_1, ... i_PL-1, j_PL-1] indices into streams i and j that were used to build the mask.
+ * @param index_pairs  An array of [i_0, j_0, i_1, j_1, ... i_PL-1, j_PL-1] indices into streams i and j that were used to build the mask.
+ * @return path_length
  */
-size_t* strided_mask_to_index_pairs(const strided_mask_t* mask, size_t* path_length);
+size_t strided_mask_to_index_pairs(const strided_mask_t* mask, size_t* index_pairs);
 
 /**
  * Upsamples the input mask by a factor of two. If row_parity or col_parity are set to 1, then we add a row (or col).
@@ -205,5 +204,5 @@ size_t* strided_mask_to_index_pairs(const strided_mask_t* mask, size_t* path_len
  * @param radius
  * @param mask_out
  */
-void strided_mask_expand(const strided_mask_t* mask_in, const int row_parity, const int col_parity, const size_t radius, strided_mask_t* mask_out);
+void strided_mask_expand(const strided_mask_t* mask_in, const size_t row_parity, const size_t col_parity, const size_t radius, strided_mask_t* mask_out);
 #endif
