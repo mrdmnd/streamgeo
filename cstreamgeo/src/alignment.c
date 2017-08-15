@@ -236,8 +236,7 @@ warp_info_t* _fast_dtw(const stream_t* a, const stream_t* b, const size_t radius
         const stream_t* shrunk_a = _reduce_by_half(a); // Allocates memory
         const stream_t* shrunk_b = _reduce_by_half(b); // Allocates memory
         const warp_info_t* shrunk_warp_info = _fast_dtw(shrunk_a, shrunk_b, radius); // Allocates memory
-        strided_mask_t* new_window = strided_mask_expand(shrunk_warp_info->path_mask, (const int) (a_n % 2),
-                                                         (const int) (b_n % 2), radius); // Allocates memory
+        strided_mask_t* new_window = strided_mask_expand(shrunk_warp_info->path_mask, (const int) (a_n % 2), (const int) (b_n % 2), radius); // Allocates memory
         stream_destroy(shrunk_a);
         stream_destroy(shrunk_b);
         warp_info_destroy(shrunk_warp_info);

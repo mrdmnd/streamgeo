@@ -129,7 +129,7 @@ void expand_radius_zero_row_parity_test() {
      * 7 . . . . * * * * . . . .
      * 8 . . . . * * * * * * . .
      * 9 . . . . * * * * * * . .
-     * 0 . . . . . . . . . . . .
+     * 0 . . . . x x x x x x . .
      */
     strided_expand_test_base(1, 0, 0);
 }
